@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=180&section=header&text=SweatCoin%20Clone&fontSize=42&fontColor=fff&animation=twinkling&fontAlignY=32&desc=Move-to-Earn%20%7C%20Flutter%20%2B%20Firebase&descAlignY=52&descAlign=50" width="100%"/>
+<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=180&section=header&text=WetCoin&fontSize=42&fontColor=fff&animation=twinkling&fontAlignY=32&desc=Move-to-Earn%20%7C%20Flutter%20%2B%20Firebase&descAlignY=52&descAlign=50" width="100%"/>
 
 <br/>
 
@@ -12,9 +12,9 @@
 
 <br/>
 
-[![GitHub Stars](https://img.shields.io/github/stars/yourusername/sweatcoin-clone?style=social)](https://github.com/yourusername/sweatcoin-clone/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/yourusername/sweatcoin-clone?style=social)](https://github.com/yourusername/sweatcoin-clone/network/members)
-[![GitHub Issues](https://img.shields.io/github/issues/yourusername/sweatcoin-clone)](https://github.com/yourusername/sweatcoin-clone/issues)
+[![GitHub Stars](https://img.shields.io/github/stars/kalkidevs/wetcoin?style=social)](https://github.com/kalkidevs/wetcoin/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/kalkidevs/wetcoin?style=social)](https://github.com/kalkidevs/wetcoin/network/members)
+[![GitHub Issues](https://img.shields.io/github/issues/kalkidevs/wetcoin)](https://github.com/kalkidevs/wetcoin/issues)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
@@ -129,8 +129,8 @@ Make sure you have the following installed:
 
 **1. Clone the repository**
 ```bash
-git clone https://github.com/yourusername/sweatcoin-clone.git
-cd sweatcoin-clone
+git clone https://github.com/kalkidevs/wetcoin.git
+cd wetcoin
 ```
 
 **2. Install Flutter dependencies**
@@ -224,9 +224,9 @@ Distributed under the MIT License. See [`LICENSE`](LICENSE) for more information
 
 ## 📬 Contact
 
-**Your Name** · [LinkedIn](https://linkedin.com/in/yourprofile) · [Twitter/X](https://twitter.com/yourhandle) · your.email@example.com
+**Your Name** · [LinkedIn](https://linkedin.com/in/kalkidevs) · yashkushwaha65@gmail.com
 
-**Project Link:** [https://github.com/yourusername/sweatcoin-clone](https://github.com/yourusername/sweatcoin-clone)
+**Project Link:** [https://github.com/kalkidevs/wetcoin](https://github.com/kalkidevs/wetcoin)
 
 ---
 
