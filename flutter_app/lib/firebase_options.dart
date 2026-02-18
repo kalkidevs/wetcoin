@@ -3,6 +3,7 @@
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Default [FirebaseOptions] for use with your Firebase apps.
 ///
@@ -49,22 +50,21 @@ class DefaultFirebaseOptions {
     }
   }
 
-  static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCSZqOsufkhc49k2koeIwAO6BlpcGvVcjs',
-    appId: '1:855783111361:android:b87c430a2096bd9d94b240',
-    messagingSenderId: '855783111361',
-    projectId: 'sweatcoin-india-91fbb',
-    storageBucket: 'sweatcoin-india-91fbb.firebasestorage.app',
-  );
+  static FirebaseOptions get android => FirebaseOptions(
+        apiKey: dotenv.env['ANDROID_API_KEY']!,
+        appId: dotenv.env['ANDROID_APP_ID']!,
+        messagingSenderId: dotenv.env['ANDROID_MESSAGING_SENDER_ID']!,
+        projectId: dotenv.env['ANDROID_PROJECT_ID']!,
+        storageBucket: dotenv.env['ANDROID_STORAGE_BUCKET']!,
+      );
 
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyDBtyNL9ngc5KPchQ22e2XuKPfvp3t81UI',
-    appId: '1:855783111361:ios:263d9d787d30b45e94b240',
-    messagingSenderId: '855783111361',
-    projectId: 'sweatcoin-india-91fbb',
-    storageBucket: 'sweatcoin-india-91fbb.firebasestorage.app',
-    iosClientId: '855783111361-qjpn2dtv51ksmnoqmsnkqj013562jhhu.apps.googleusercontent.com',
-    iosBundleId: 'com.kalkidves.wetcoin',
-  );
-
+  static FirebaseOptions get ios => FirebaseOptions(
+        apiKey: dotenv.env['IOS_API_KEY']!,
+        appId: dotenv.env['IOS_APP_ID']!,
+        messagingSenderId: dotenv.env['IOS_MESSAGING_SENDER_ID']!,
+        projectId: dotenv.env['IOS_PROJECT_ID']!,
+        storageBucket: dotenv.env['IOS_STORAGE_BUCKET']!,
+        iosClientId: dotenv.env['IOS_CLIENT_ID']!,
+        iosBundleId: dotenv.env['IOS_BUNDLE_ID']!,
+      );
 }
