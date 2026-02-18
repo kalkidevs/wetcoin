@@ -1,0 +1,51 @@
+name: sweatcoin
+description: "Sweatcoin clone MVP"
+publish_to: 'none'
+version: 1.0.0+1
+environment:
+  sdk: '>=3.1.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  firebase_core: ^3.1.0
+  firebase_auth: ^5.1.0
+  cloud_firestore: ^5.0.0
+  cloud_functions: ^5.0.0
+
+  flutter_riverpod: ^2.5.1
+  dio: ^5.5.0
+
+  health: ^13.1.4
+  workmanager: ^0.6.0
+
+  flutter_secure_storage: ^9.2.2
+  permission_handler: ^11.3.1
+  device_info_plus: ^9.1.2
+
+  google_fonts: ^6.2.1
+  intl: ^0.20.0
+  equatable: ^2.0.5
+  uuid: ^4.4.0
+
+  # Google Sign-In
+  google_sign_in: ^6.2.1
+  change_app_package_name: ^1.5.0
+  pedometer: ^4.1.1
+  fpdart: ^1.2.0
+  flutter_animate: ^4.5.2
+  shimmer: ^3.0.0
+  cached_network_image: ^3.4.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+  build_runner: ^2.4.8
+  json_serializable: ^6.7.1
+
+flutter:
+  uses-material-design: true

@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // User Profiles
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      // Allow update of critical fields for client-side logic (Spark Plan)
+      allow update: if request.auth != null && request.auth.uid == userId;
+      
+      // Subcollections
+      match /steps/{date} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      match /wallet/{txId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // User Orders
+    match /orders/{orderId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+
+    // Rewards Catalog
+    match /rewards/{rewardId} {
+      allow read: if true;
+      // Allow update (stock deduction) for authenticated users (Client-side logic)
+      allow update: if request.auth != null; 
+    }
+  }
+}

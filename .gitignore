@@ -1,0 +1,61 @@
+# General
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.log
+
+# Firebase
+firebase-debug.log
+.firebase/
+functions/node_modules/
+functions/lib/
+functions/package-lock.json
+
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+build/
+
+# Android
+android/.gradle/
+android/local.properties
+android/app/build/
+android/app/.cxx/
+android/app/release/
+android/app/src/main/assets/public/
+
+# iOS
+ios/Flutter/App.framework
+ios/Flutter/Flutter.framework
+ios/Flutter/Generated.xcconfig
+ios/Flutter/app.flx
+ios/Flutter/app.zip
+ios/Flutter/flutter_assets/
+ios/ServiceDefinitions.json
+ios/Runner/GeneratedPluginRegistrant.*
+ios/Pods/
+ios/.symlinks/
+ios/Profile/
+ios/Release/
+
+# Keys & Secrets (CRITICAL: Do not upload these!)
+*.jks
+*.keystore
+*.key
+google-services.json
+GoogleService-Info.plist
+client_secret_*.json
+flutter_app/new-release-key.jks
+flutter_app/android/key.properties
+
+# Web
+web/icons/
+web/favicon.png
+web/manifest.json
+
+# Exceptions (if any)
+!functions/package-lock.json
