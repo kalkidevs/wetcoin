@@ -43,6 +43,7 @@ ios/Profile/
 ios/Release/
 
 # Keys & Secrets (CRITICAL: Do not upload these!)
+.env
 *.jks
 *.keystore
 *.key
