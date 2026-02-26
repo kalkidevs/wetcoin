@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_typography.dart';
-import '../../../../shared/widgets/app_card.dart';
-import '../../../../shared/widgets/app_button.dart';
-import '../../../../shared/widgets/animated_counter.dart';
-import '../../../../shared/widgets/app_loading_shimmer.dart';
-import '../../../auth/presentation/providers/auth_state_provider.dart';
+import 'package:intl/intl.dart';
+import 'dart:math';
+import '../../../../core/theme/design_system.dart';
+import '../../../../shared/widgets/animated_progress_circle.dart';
+import '../../../../shared/widgets/confetti_painter.dart';
+import '../../../../shared/widgets/animated_gradient_background.dart';
+import '../../../../shared/widgets/app_loading_animation.dart';
+import '../widgets/weekly_trend_chart.dart';
+import '../widgets/metric_card.dart';
 import '../providers/health_provider.dart';
 import '../providers/sync_provider.dart';
-import '../../../orders/presentation/screens/orders_screen.dart';
+import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../../rewards/presentation/screens/rewards_screen.dart';
 import '../../../wallet/data/repositories/wallet_repository.dart';
 import '../../../wallet/presentation/screens/wallet_screen.dart';
@@ -29,40 +31,113 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     const DashboardTab(),
     const WalletScreen(),
     const RewardsScreen(),
-    const OrdersScreen(),
+    const ProfileScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_currentIndex],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) => setState(() => _currentIndex = index),
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        elevation: 8,
-        indicatorColor: AppColors.primary.withOpacity(0.1),
-        destinations: const [
-          NavigationDestination(
-              icon: Icon(Icons.directions_walk_outlined),
-              selectedIcon:
-                  Icon(Icons.directions_walk, color: AppColors.primary),
-              label: 'Steps'),
-          NavigationDestination(
-              icon: Icon(Icons.account_balance_wallet_outlined),
-              selectedIcon:
-                  Icon(Icons.account_balance_wallet, color: AppColors.primary),
-              label: 'Wallet'),
-          NavigationDestination(
-              icon: Icon(Icons.card_giftcard_outlined),
-              selectedIcon: Icon(Icons.card_giftcard, color: AppColors.primary),
-              label: 'Rewards'),
-          NavigationDestination(
-              icon: Icon(Icons.shopping_bag_outlined),
-              selectedIcon: Icon(Icons.shopping_bag, color: AppColors.primary),
-              label: 'Orders'),
-        ],
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _screens,
+      ),
+      bottomNavigationBar: _buildCustomBottomNav(),
+    );
+  }
+
+  Widget _buildCustomBottomNav() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).bottomNavigationBarTheme.backgroundColor ??
+            Theme.of(context).cardColor,
+        boxShadow: DesignSystem.elevationMedium,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: SafeArea(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _NavItem(
+              icon: Icons.directions_walk_rounded,
+              label: 'Steps',
+              isSelected: _currentIndex == 0,
+              onTap: () => setState(() => _currentIndex = 0),
+            ),
+            _NavItem(
+              icon: Icons.account_balance_wallet_rounded,
+              label: 'Wallet',
+              isSelected: _currentIndex == 1,
+              onTap: () => setState(() => _currentIndex = 1),
+            ),
+            _NavItem(
+              icon: Icons.card_giftcard_rounded,
+              label: 'Rewards',
+              isSelected: _currentIndex == 2,
+              onTap: () => setState(() => _currentIndex = 2),
+            ),
+            _NavItem(
+              icon: Icons.person_outline_rounded,
+              label: 'Profile',
+              isSelected: _currentIndex == 3,
+              onTap: () => setState(() => _currentIndex = 3),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: DesignSystem.durationFast,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? DesignSystem.primary.withOpacity(0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              color: isSelected
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).textTheme.bodyMedium?.color,
+              size: 24,
+            ),
+            if (isSelected) ...[
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ).animate().fadeIn().slideX(begin: -0.2, end: 0),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -78,37 +153,87 @@ class DashboardTab extends ConsumerStatefulWidget {
 class _DashboardTabState extends ConsumerState<DashboardTab> {
   int _steps = 0;
   bool _syncing = false;
+  bool _showConfetti = false;
+  List<int> _weeklySteps = [];
+  List<String> _weeklyLabels = [];
 
   @override
   void initState() {
     super.initState();
-    _loadSteps();
+    // Only load data after attempting to request permissions
     ref.read(healthServiceProvider).requestPermissions().then((granted) {
-      _loadSteps();
+      if (mounted) {
+        _loadData();
+      }
     });
   }
 
-  Future<void> _loadSteps() async {
-    final steps =
-        await ref.read(healthServiceProvider).getStepsForDate(DateTime.now());
-    if (mounted) setState(() => _steps = steps);
+  Future<void> _loadData() async {
+    try {
+      final health = ref.read(healthServiceProvider);
+      final now = DateTime.now();
+
+      // 1. Get Today's Steps
+      final steps = await health.getStepsForDate(now);
+
+      // 2. Get Weekly History (Last 7 days)
+      final weeklySteps = <int>[];
+      final weeklyLabels = <String>[];
+      for (int i = 6; i >= 0; i--) {
+        final date = now.subtract(Duration(days: i));
+        final daySteps = await health.getStepsForDate(date);
+        weeklySteps.add(daySteps);
+        weeklyLabels.add(DateFormat('E').format(date).substring(0, 1));
+      }
+
+      if (mounted) {
+        setState(() {
+          _steps = steps;
+          _weeklySteps = weeklySteps;
+          _weeklyLabels = weeklyLabels;
+          if (_steps >= 15000) {
+            _showConfetti = true;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint("Error loading dashboard data: $e");
+    }
   }
 
   Future<void> _sync() async {
     setState(() => _syncing = true);
     try {
-      await ref.read(syncServiceProvider).syncToday();
-      await _loadSteps();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Synced successfully!'),
-            backgroundColor: AppColors.success));
+      final result = await ref.read(syncServiceProvider).syncToday();
+
+      // Check if sync was successful or if we got a fallback response
+      if (result['success'] == true) {
+        await _loadData();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: const Text('Synced successfully!'),
+              backgroundColor: Theme.of(context).colorScheme.primary));
+        }
+      } else if (result['fallback'] == true) {
+        // Handle fallback gracefully
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(result['error'] ?? 'Sync service unavailable'),
+              backgroundColor: Theme.of(context).colorScheme.secondary));
+        }
+      } else {
+        // Handle other sync failures
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: const Text('Sync failed. Please try again later.'),
+              backgroundColor: Theme.of(context).colorScheme.error));
+        }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text('Sync failed: $e'),
-            backgroundColor: AppColors.error));
+            backgroundColor: Theme.of(context).colorScheme.error));
       }
     } finally {
       if (mounted) setState(() => _syncing = false);
@@ -117,148 +242,289 @@ class _DashboardTabState extends ConsumerState<DashboardTab> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final userAsync = ref.watch(walletRepositoryProvider).getUserStream();
     final pedometerAsync = ref.watch(pedometerStreamProvider);
     final healthService = ref.watch(healthServiceProvider);
     final isFallback = healthService.isUsingPedometer;
 
+    // Calculate metrics
+    final currentSteps = isFallback && pedometerAsync.value != null
+        ? (pedometerAsync.value?.steps ?? _steps)
+        : _steps;
+
+    final calories = (currentSteps * 0.04).toInt();
+    final distanceKm = (currentSteps * 0.762 / 1000).toStringAsFixed(2);
+    final activeMinutes = (currentSteps / 100).toInt();
+
+    // Potential coins (1 coin per 100 steps, max 150)
+    final earned = (min(currentSteps, 15000) / 100).floor();
+
     return Scaffold(
-      appBar: AppBar(
-        title:
-            Text('Sweatcoin India', style: AppTypography.textTheme.titleLarge),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => ref.read(authStateProvider.notifier).signOut(),
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _sync,
-        color: AppColors.primary,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const SizedBox(height: 10),
-                // Balance Card
-                StreamBuilder(
-                  stream: userAsync,
-                  builder: (context, snapshot) {
-                    final balance = snapshot.data?.data()?['balance'] ?? 0;
-                    return AppCard(
-                      color: AppColors.primary,
-                      padding: const EdgeInsets.all(24.0),
-                      elevation: 8,
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: Column(
-                          children: [
-                            Text(
-                              'Balance',
-                              style: AppTypography.textTheme.bodyMedium
-                                  ?.copyWith(color: Colors.white70),
-                            ),
-                            const SizedBox(height: 8),
-                            AnimatedCounter(
-                              value: balance is num ? balance.toInt() : 0,
-                              style: AppTypography.textTheme.displayMedium
-                                  ?.copyWith(color: Colors.white),
-                            ),
-                            Text('SWC',
-                                style: AppTypography.textTheme.labelLarge),
-                          ],
-                        ),
-                      ),
-                    ).animate().fadeIn().slideY(begin: 0.2, end: 0);
-                  },
-                ),
-                const SizedBox(height: 40),
-                // Steps Indicator
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    SizedBox(
-                      width: 240,
-                      height: 240,
-                      child: CircularProgressIndicator(
-                        value: (_steps / 15000).clamp(0.0, 1.0),
-                        strokeWidth: 20,
-                        backgroundColor: Colors.grey.shade100,
-                        color: AppColors.secondary,
-                        strokeCap: StrokeCap.round,
-                      ),
-                    ),
-                    Column(
+      backgroundColor: Colors.transparent,
+      body: AnimatedGradientBackground(
+        child: ConfettiSystem(
+          shouldBlast: _showConfetti,
+          child: RefreshIndicator(
+            onRefresh: _sync,
+            color: theme.primaryColor,
+            child: CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                // Premium Header
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 60, 24, 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.directions_run,
-                            size: 48, color: AppColors.textSecondary),
-                        const SizedBox(height: 8),
-                        AnimatedCounter(
-                          value: isFallback && pedometerAsync.value != null
-                              ? (pedometerAsync.value?.steps ?? _steps)
-                              : _steps,
-                          style: AppTypography.textTheme.displayLarge,
+                        StreamBuilder(
+                          stream: userAsync,
+                          builder: (context, snapshot) {
+                            final name = snapshot.data
+                                    ?.data()?['name']
+                                    ?.toString()
+                                    .split(' ')
+                                    .first ??
+                                'Walker';
+                            return Text(
+                              'Good Morning, $name',
+                              style: theme.textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: theme.textTheme.bodyLarge?.color
+                                    ?.withOpacity(0.8),
+                              ),
+                            );
+                          },
                         ),
                         Text(
-                          isFallback ? 'Total Steps' : 'Steps Today',
-                          style: AppTypography.textTheme.bodyMedium,
+                          DateFormat('EEEE, d MMMM').format(DateTime.now()),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.textTheme.bodyMedium?.color
+                                ?.withOpacity(0.6),
+                          ),
                         ),
                       ],
                     ),
-                  ],
-                ).animate().scale(duration: 500.ms, curve: Curves.easeOutBack),
-
-                const SizedBox(height: 16),
-                if (isFallback)
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.warning.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border:
-                          Border.all(color: AppColors.warning.withOpacity(0.3)),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.info_outline,
-                            size: 16, color: AppColors.warning),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Using Pedometer Mode',
-                          style: AppTypography.textTheme.bodySmall?.copyWith(
-                              color: AppColors.warning,
-                              fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ).animate().fadeIn(),
-
-                const SizedBox(height: 24),
-                Text(
-                  'Goal: 15,000 steps',
-                  style: AppTypography.textTheme.bodyLarge?.copyWith(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 40),
 
-                if (_syncing)
-                  const AppLoadingShimmer(width: 150, height: 50)
-                else
-                  AppButton(
-                    label: 'Sync Now',
-                    icon: Icons.sync,
-                    onPressed: _sync,
-                    type: AppButtonType.secondary,
-                  ).animate().fadeIn(delay: 200.ms),
+                // Main Dashboard Content
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      children: [
+                        // Main Progress Ring Card
+                        Container(
+                          padding: const EdgeInsets.all(32),
+                          decoration: BoxDecoration(
+                            color: theme.cardColor,
+                            borderRadius: BorderRadius.circular(32),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 20,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              AnimatedProgressCircle(
+                                steps: currentSteps,
+                                goal: 15000,
+                                size: 220,
+                              ),
+                              const SizedBox(height: 24),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primaryContainer
+                                      .withOpacity(0.5),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.monetization_on_rounded,
+                                        size: 16, color: theme.primaryColor),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Earned today: $earned SWC',
+                                      style:
+                                          theme.textTheme.labelLarge?.copyWith(
+                                        color: theme.primaryColor,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ).animate().fadeIn().slideY(begin: 0.1, end: 0),
 
-                const SizedBox(height: 20),
+                        const SizedBox(height: 24),
+
+                        // Metrics Grid
+                        Row(
+                          children: [
+                            Expanded(
+                              child: MetricCard(
+                                label: 'Calories',
+                                value: '$calories',
+                                unit: 'kcal',
+                                icon: Icons.local_fire_department_rounded,
+                                color: Colors.orange,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: MetricCard(
+                                label: 'Distance',
+                                value: distanceKm,
+                                unit: 'km',
+                                icon: Icons.map_rounded,
+                                color: Colors.blue,
+                              ),
+                            ),
+                          ],
+                        )
+                            .animate()
+                            .fadeIn(delay: 100.ms)
+                            .slideY(begin: 0.1, end: 0),
+
+                        const SizedBox(height: 16),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: MetricCard(
+                                label: 'Active Time',
+                                value: '$activeMinutes',
+                                unit: 'min',
+                                icon: Icons.timer_rounded,
+                                color: Colors.purple,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            // Placeholder or another metric if needed, or leave empty/full width
+                            Expanded(
+                              child: _syncing
+                                  ? Container(
+                                      height: 100,
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(
+                                        color: theme.cardColor,
+                                        borderRadius: BorderRadius.circular(24),
+                                      ),
+                                      child: const AppLoadingAnimation(
+                                          width: 50, height: 50),
+                                    )
+                                  : GestureDetector(
+                                      onTap: _sync,
+                                      child: Container(
+                                        height: 100,
+                                        decoration: BoxDecoration(
+                                          color: theme.primaryColor,
+                                          borderRadius:
+                                              BorderRadius.circular(24),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: theme.primaryColor
+                                                  .withOpacity(0.3),
+                                              blurRadius: 10,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                          ],
+                                        ),
+                                        child: const Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.sync_rounded,
+                                                color: Colors.white, size: 32),
+                                            SizedBox(height: 8),
+                                            Text(
+                                              'Sync Now',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                            ),
+                          ],
+                        )
+                            .animate()
+                            .fadeIn(delay: 150.ms)
+                            .slideY(begin: 0.1, end: 0),
+
+                        const SizedBox(height: 24),
+
+                        // Weekly Trend
+                        WeeklyTrendChart(
+                          weeklySteps: _weeklySteps,
+                          labels: _weeklyLabels,
+                          barColor: theme.primaryColor,
+                        )
+                            .animate()
+                            .fadeIn(delay: 200.ms)
+                            .slideY(begin: 0.1, end: 0),
+
+                        const SizedBox(height: 24),
+
+                        // Motivation Card
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                theme.primaryColor.withOpacity(0.1),
+                                theme.colorScheme.secondary.withOpacity(0.1),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: theme.primaryColor.withOpacity(0.1),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Text(
+                                '🔥',
+                                style: TextStyle(fontSize: 24),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Text(
+                                  'You are doing great! Keep moving to reach your daily goal.',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: theme.textTheme.bodyLarge?.color
+                                        ?.withOpacity(0.8),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                            .animate()
+                            .fadeIn(delay: 300.ms)
+                            .slideY(begin: 0.1, end: 0),
+
+                        const SizedBox(height: 100), // Bottom padding
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

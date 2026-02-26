@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/theme_provider.dart';
 import 'core/router/app_router.dart';
-import 'core/config/env_config.dart';
 import 'features/auth/presentation/screens/auth_wrapper.dart';
 
-class SweatcoinApp extends ConsumerWidget {
-  const SweatcoinApp({super.key});
+class App extends ConsumerWidget {
+  const App({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeProvider);
+
     return MaterialApp(
-      title: EnvConfig.appName,
+      title: 'Sweatcoin',
       theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: themeMode,
       home: const AuthWrapper(),
       onGenerateRoute: AppRouter.generateRoute,
       debugShowCheckedModeBanner: false,

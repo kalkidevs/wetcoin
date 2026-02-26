@@ -1,109 +1,234 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_typography.dart';
-import '../../../../shared/widgets/app_loading_shimmer.dart';
+import '../../../../core/theme/design_system.dart';
+import '../../../../shared/widgets/app_animated_card.dart';
+import '../../../../shared/widgets/animated_coin_counter.dart';
+import '../providers/wallet_provider.dart';
 import '../../data/repositories/wallet_repository.dart';
 
-class WalletScreen extends ConsumerWidget {
+class WalletScreen extends ConsumerStatefulWidget {
   const WalletScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<WalletScreen> createState() => _WalletScreenState();
+}
+
+class _WalletScreenState extends ConsumerState<WalletScreen> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      ref.read(walletNotifierProvider.notifier).loadTransactions();
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(walletNotifierProvider);
+    final walletRepo = ref.watch(walletRepositoryProvider);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Wallet History')),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: ref.read(walletRepositoryProvider).getTransactions(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: 6,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (_, __) =>
-                  const AppLoadingShimmer(width: double.infinity, height: 72),
-            );
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          final transactions = snapshot.data ?? [];
-          if (transactions.isEmpty) {
-            return Center(
+      backgroundColor: DesignSystem.background,
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () => ref.read(walletNotifierProvider.notifier).refresh(),
+          color: DesignSystem.primary,
+          child: CustomScrollView(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              // Sticky Header with Balance
+              SliverAppBar(
+                backgroundColor: DesignSystem.background,
+                elevation: 0,
+                pinned: true,
+                expandedHeight: 180,
+                flexibleSpace: FlexibleSpaceBar(
+                  background: Padding(
+                    padding: const EdgeInsets.all(DesignSystem.s24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          'Total Balance',
+                          style: TextStyle(
+                            color: DesignSystem.textSecondary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: DesignSystem.s8),
+                        StreamBuilder(
+                          stream: walletRepo.getUserStream(),
+                          builder: (context, snapshot) {
+                            final balance =
+                                snapshot.data?.data()?['balance'] ?? 0;
+                            return AnimatedCoinCounter(
+                              amount: balance is num ? balance.toInt() : 0,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // Title
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                      horizontal: DesignSystem.s24, vertical: DesignSystem.s16),
+                  child: Text(
+                    'Transaction History',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: DesignSystem.textPrimary,
+                    ),
+                  ),
+                ),
+              ),
+
+              // List
+              if (state.transactions.isEmpty && !state.isLoading)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.receipt_long_rounded,
+                            size: 64,
+                            color: DesignSystem.textSecondary.withOpacity(0.3)),
+                        const SizedBox(height: DesignSystem.s16),
+                        const Text('No transactions yet',
+                            style:
+                                TextStyle(color: DesignSystem.textSecondary)),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      if (index == state.transactions.length) {
+                        return state.isLoading
+                            ? const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child:
+                                    Center(child: CircularProgressIndicator()),
+                              )
+                            : const SizedBox.shrink();
+                      }
+
+                      final tx = state.transactions[index];
+                      return _buildTransactionItem(tx, index);
+                    },
+                    childCount: state.transactions.length + 1,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTransactionItem(Map<String, dynamic> tx, int index) {
+    final isEarn = tx['type'] == 'earn';
+    final amount = tx['amount'] ?? 0;
+    final description = tx['description'] ?? 'Transaction';
+
+    // Handle timestamp (Timestamp or String/ISO)
+    DateTime date;
+    if (tx['timestamp'] is Timestamp) {
+      date = (tx['timestamp'] as Timestamp).toDate();
+    } else if (tx['timestamp'] is String) {
+      date = DateTime.tryParse(tx['timestamp']) ?? DateTime.now();
+    } else {
+      date = DateTime.now();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: DesignSystem.s16, vertical: DesignSystem.s4),
+      child: AppAnimatedCard(
+        color: DesignSystem.surface,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(DesignSystem.s12),
+              decoration: BoxDecoration(
+                color: isEarn
+                    ? DesignSystem.success.withOpacity(0.1)
+                    : Colors.red.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isEarn
+                    ? Icons.arrow_downward_rounded
+                    : Icons.arrow_upward_rounded,
+                color: isEarn ? DesignSystem.success : Colors.red,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: DesignSystem.s16),
+            Expanded(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.receipt_long_outlined,
-                      size: 64, color: AppColors.textTertiary),
-                  const SizedBox(height: 16),
-                  Text('No transactions yet',
-                      style: AppTypography.textTheme.bodyMedium),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: DesignSystem.textPrimary,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    DateFormat.yMMMd().add_jm().format(date),
+                    style: const TextStyle(
+                      color: DesignSystem.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
                 ],
               ),
-            );
-          }
-
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: transactions.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final tx = transactions[index];
-              final isEarn = tx['type'] == 'earn';
-              final amount = tx['amount'] ?? 0;
-              final date =
-                  (tx['timestamp'] as dynamic)?.toDate() ?? DateTime.now();
-
-              return Container(
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4)),
-                  ],
-                ),
-                child: ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  leading: CircleAvatar(
-                    radius: 24,
-                    backgroundColor: isEarn
-                        ? AppColors.success.withOpacity(0.1)
-                        : AppColors.error.withOpacity(0.1),
-                    child: Icon(
-                      isEarn
-                          ? Icons.arrow_downward_rounded
-                          : Icons.arrow_upward_rounded,
-                      color: isEarn ? AppColors.success : AppColors.error,
-                      size: 20,
-                    ),
-                  ),
-                  title: Text(tx['description'] ?? 'Transaction',
-                      style: AppTypography.textTheme.bodyLarge
-                          ?.copyWith(fontWeight: FontWeight.w600)),
-                  subtitle: Text(DateFormat.yMMMd().add_jm().format(date),
-                      style: AppTypography.textTheme.bodySmall),
-                  trailing: Text(
-                    '${isEarn ? '+' : ''}${amount.toStringAsFixed(2)}',
-                    style: AppTypography.textTheme.titleMedium?.copyWith(
-                      color: isEarn ? AppColors.success : AppColors.error,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              )
-                  .animate()
-                  .fadeIn(delay: (50 * index).ms)
-                  .slideX(begin: 0.2, end: 0);
-            },
-          );
-        },
-      ),
+            ),
+            Text(
+              '${isEarn ? '+' : ''}${amount is num ? amount.toStringAsFixed(2) : amount}',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: isEarn ? DesignSystem.success : Colors.red,
+              ),
+            ),
+          ],
+        ),
+      )
+          .animate()
+          .fadeIn(delay: (50 * (index % 10)).ms)
+          .slideX(begin: 0.1, end: 0),
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../shared/widgets/app_loading_animation.dart';
 import '../providers/auth_state_provider.dart';
 import '../../presentation/screens/login_screen.dart';
 import '../../../health_sync/presentation/screens/home_screen.dart';
@@ -19,7 +20,7 @@ class AuthWrapper extends ConsumerWidget {
       case AuthStatus.loading:
       case AuthStatus.initial:
         return const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
+          body: AppLoadingAnimation(),
         );
     }
   }

@@ -3,7 +3,9 @@ import 'package:pedometer/pedometer.dart';
 import '../../data/datasources/health_service.dart';
 
 final healthServiceProvider = Provider<HealthService>((ref) {
-  return HealthService();
+  final service = HealthService();
+  ref.onDispose(service.dispose);
+  return service;
 });
 
 final healthStepsProvider = FutureProvider<int>((ref) async {

@@ -2,7 +2,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sweatcoin/core/utils/logger.dart';
 import '../repositories/user_repository.dart';
+import '../datasources/auth_backend_service.dart';
 
 /// Provider for the AuthService
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
@@ -24,6 +26,7 @@ class AuthService {
 
   late final GoogleSignIn _googleSignIn;
   final UserRepository _userRepository = UserRepository();
+  final AuthBackendService _backendService = AuthBackendService();
 
   AuthService() {
     // Initialize GoogleSignIn with the server client ID
@@ -45,18 +48,25 @@ class AuthService {
   /// Throws exceptions on failure
   Future<UserCredential> signInWithGoogle() async {
     try {
-      debugPrint('[AuthService] Starting Google Sign-In...');
-      debugPrint('[AuthService] Using serverClientId: $_serverClientId');
+      AppLogger.section('GOOGLE SIGN-IN FLOW');
+      AppLogger.userState(
+          'SIGN_IN_START', 'unknown', 'Starting Google Sign-In');
+      AppLogger.firebase('GOOGLE_SIGN_IN', 'Starting Google Sign-In flow');
+      AppLogger.config('SERVER_CLIENT_ID', _serverClientId);
 
       // Trigger the Google Sign-In flow
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
-      debugPrint(
-          '[AuthService] Google Sign-In result: ${googleUser?.email ?? "null (cancelled)"}');
-      debugPrint('[AuthService] Google User ID: ${googleUser?.id}');
+      AppLogger.auth(
+          'GOOGLE_SIGN_IN_RESULT',
+          googleUser != null
+              ? 'User selected: ${googleUser.email}'
+              : 'User cancelled Google Sign-In');
 
       // Handle user cancellation
       if (googleUser == null) {
+        AppLogger.warn(
+            'AUTH_CANCELLED', 'Google Sign-In was cancelled by the user');
         throw AuthException(
           'cancelled',
           'Google Sign-In was cancelled by the user',
@@ -64,14 +74,15 @@ class AuthService {
       }
 
       // Obtain the auth details from the Google Sign-In
-      debugPrint('[AuthService] Getting auth details for: ${googleUser.email}');
+      AppLogger.auth('GETTING_AUTH_DETAILS',
+          'Getting auth details for: ${googleUser.email}');
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
 
-      debugPrint(
-          '[AuthService] Access token: ${googleAuth.accessToken?.substring(0, 10) ?? "null"}...');
-      debugPrint(
-          '[AuthService] ID token: ${googleAuth.idToken?.substring(0, 20) ?? "null"}...');
+      AppLogger.auth(
+          'TOKENS_RECEIVED',
+          'Access token: ${googleAuth.accessToken?.substring(0, 10) ?? "null"}... '
+              'ID token: ${googleAuth.idToken?.substring(0, 20) ?? "null"}...');
 
       // Create a new credential
       final OAuthCredential credential = GoogleAuthProvider.credential(
@@ -79,33 +90,66 @@ class AuthService {
         idToken: googleAuth.idToken,
       );
 
-      debugPrint('[AuthService] Signing in to Firebase with credential...');
+      AppLogger.auth(
+          'FIREBASE_SIGN_IN', 'Signing in to Firebase with credential...');
 
       // Sign in to Firebase with the Google credential
       final UserCredential userCredential =
           await _auth.signInWithCredential(credential);
 
-      debugPrint(
-          '[AuthService] Firebase sign-in successful: ${userCredential.user?.email}');
+      AppLogger.auth('FIREBASE_SIGN_IN_SUCCESS',
+          'Firebase sign-in successful: ${userCredential.user?.email}');
 
       // Create user document in Firestore on first login
       if (userCredential.user != null) {
-        debugPrint('[AuthService] Creating user document in Firestore...');
+        AppLogger.auth('FIRESTORE_USER_CREATION',
+            'Creating user document in Firestore...');
         await _userRepository.createUserDocument(userCredential.user!);
-        debugPrint('[AuthService] User document created successfully');
+        AppLogger.auth(
+            'FIRESTORE_USER_CREATED', 'User document created successfully');
+
+        // Sync user with backend MongoDB
+        AppLogger.auth(
+            'MONGODB_SYNC_START', 'Syncing user with backend MongoDB...');
+        try {
+          // Get the Firebase ID token to send to backend
+          final idToken = await userCredential.user!.getIdToken();
+          if (idToken != null) {
+            final backendResult = await _backendService.verifyToken(idToken);
+            if (backendResult['success'] == true) {
+              AppLogger.auth('MONGODB_SYNC_SUCCESS',
+                  'User synced with MongoDB successfully');
+            } else {
+              AppLogger.warn('MONGODB_SYNC_FAILED',
+                  'Failed to sync user with MongoDB: ${backendResult['error']}');
+            }
+          } else {
+            AppLogger.warn(
+                'MONGODB_SYNC_FAILED', 'Failed to get Firebase ID token');
+          }
+        } catch (e) {
+          AppLogger.error(
+              'MONGODB_SYNC_ERROR', 'Error syncing user with MongoDB: $e');
+        }
       }
+
+      AppLogger.userState(
+          'SIGN_IN_SUCCESS',
+          userCredential.user?.uid ?? 'unknown',
+          userCredential.user?.email ?? 'unknown');
+      AppLogger.auth('AUTH_SUCCESS', 'User authenticated successfully');
 
       return userCredential;
     } on FirebaseAuthException catch (e) {
-      debugPrint(
-          '[AuthService] FirebaseAuthException: ${e.code} - ${e.message}');
+      AppLogger.error('FIREBASE_AUTH_ERROR',
+          'FirebaseAuthException: ${e.code} - ${e.message}');
       throw AuthException(
         e.code,
         _getFirebaseAuthErrorMessage(e.code),
       );
     } catch (e, stackTrace) {
-      debugPrint('[AuthService] Unknown error: $e');
-      debugPrint('[AuthService] Stack trace: $stackTrace');
+      AppLogger.error('AUTH_UNKNOWN_ERROR',
+          'Unknown error during authentication: $e', stackTrace);
       throw AuthException(
         'unknown',
         'An unexpected error occurred: ${e.toString()}',

@@ -1,239 +1,259 @@
-<div align="center">
+# Sweatcoin Backend - Authentication & MongoDB Integration
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=180&section=header&text=WetCoin&fontSize=42&fontColor=fff&animation=twinkling&fontAlignY=32&desc=Move-to-Earn%20%7C%20Flutter%20%2B%20Firebase&descAlignY=52&descAlign=50" width="100%"/>
+## Overview
 
-<br/>
+This document provides a comprehensive guide to troubleshooting and optimizing the Google sign-in/signup functionality with Firebase Authentication and MongoDB Atlas integration.
 
-[![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev)
-[![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?style=for-the-badge&logo=dart&logoColor=white)](https://dart.dev)
-[![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com)
-[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Riverpod](https://img.shields.io/badge/Riverpod-State%20Mgmt-00BCD4?style=for-the-badge&logo=flutter&logoColor=white)](https://riverpod.dev)
+## Issues Identified & Solutions Implemented
 
-<br/>
+### 1. **Missing Backend Authentication Flow**
 
-[![GitHub Stars](https://img.shields.io/github/stars/kalkidevs/wetcoin?style=social)](https://github.com/kalkidevs/wetcoin/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/kalkidevs/wetcoin?style=social)](https://github.com/kalkidevs/wetcoin/network/members)
-[![GitHub Issues](https://img.shields.io/github/issues/kalkidevs/wetcoin)](https://github.com/kalkidevs/wetcoin/issues)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+**Problem**: The Flutter app was only using Firebase Authentication without communicating with the backend to store user data in MongoDB.
 
-<br/>
+**Solution**: 
+- Created `/api/auth/verify-token` endpoint to verify Firebase ID tokens
+- Implemented user creation/updates in MongoDB when users sign in
+- Added JWT token generation for backend authentication
 
-> **A full-stack Move-to-Earn mobile application** — convert your daily steps into spendable digital currency and redeem real-world rewards. Built with Flutter, Firebase, and a server-side anti-cheat engine.
+### 2. **Database Connection Issues**
 
-<br/>
+**Problem**: MongoDB connection was not properly established, causing silent failures.
 
-[Features](#-features) · [Architecture](#-architecture) · [Tech Stack](#-tech-stack) · [Getting Started](#-getting-started) · [Screenshots](#-screenshots) · [Contributing](#-contributing)
+**Solution**:
+- Fixed MongoDB connection string in `.env`
+- Added proper error handling and logging
+- Implemented connection retry logic
+- Added database indexes for better performance
 
-</div>
+### 3. **User Data Persistence Problems**
 
----
+**Problem**: User data was being stored in Firebase Firestore but not in MongoDB Atlas.
 
-## 📖 About the Project
+**Solution**:
+- Created proper User model with all required fields
+- Implemented `findOrCreate` static method for efficient user management
+- Added pre-save middleware for automatic timestamp updates
+- Integrated user creation with authentication flow
 
-SweatCoin Clone is a production-grade, open-source **Move-to-Earn** app that demonstrates how to build a real-world fitness rewards ecosystem from scratch. It integrates natively with **Apple HealthKit** and **Google Fit**, runs a background sync service, and uses Firebase Cloud Functions to validate step data server-side — preventing fraudulent submissions before any coins are credited.
+### 4. **Missing Error Handling & Logging**
 
-This project is ideal for Flutter developers who want to explore:
-- Deep platform integration (HealthKit / Google Fit)
-- Clean Architecture at scale in Flutter
-- Serverless backend logic with Firebase Cloud Functions
-- Anti-cheat / data validation patterns for fitness apps
+**Problem**: Silent failures made debugging difficult.
 
----
+**Solution**:
+- Added comprehensive logging throughout the application
+- Implemented proper error handling with meaningful messages
+- Created centralized logging utility for Flutter app
+- Added validation and sanitization for all inputs
 
-## ✨ Features
+## Architecture Changes
 
-| Feature | Details |
-|---|---|
-| 👟 **Step Tracking** | Native integration with HealthKit (iOS) and Google Fit (Android) |
-| 🔄 **Background Sync** | Persistent background service keeps steps updated even when the app is closed |
-| 💰 **Digital Wallet** | Real-time coin balance, transaction history, and animated balance updates |
-| 🛍️ **Rewards Marketplace** | Browse and redeem rewards; purchase flow with order confirmation |
-| 🔐 **Secure Auth** | Google Sign-In via Firebase Authentication |
-| 🛡️ **Anti-Cheat Engine** | Server-side Cloud Functions validate reported steps against historical data |
-| 📱 **Cross-Platform** | Runs on iOS and Android from a single codebase |
-
----
-
-## 🏛️ Architecture
-
-This project follows **Clean Architecture** principles, separating concerns into three distinct layers for maximum testability and scalability.
+### Backend Structure
 
 ```
-lib/
-├── core/                   # App-wide utilities, theme, constants, routing
-│   ├── theme/
-│   ├── config/
-│   └── utils/
-│
-├── features/               # Self-contained, feature-first modules
-│   ├── auth/               # Google Sign-In, session management
-│   │   ├── data/           # Firebase Auth data sources & repo impl
-│   │   ├── domain/         # Auth entities & use cases
-│   │   └── presentation/   # Login screen, auth state notifier
-│   │
-│   ├── health_sync/        # Step tracking & background sync
-│   │   ├── data/
-│   │   ├── domain/
-│   │   └── presentation/
-│   │
-│   ├── wallet/             # Coin balance & transaction history
-│   ├── rewards/            # Rewards marketplace & browsing
-│   └── orders/             # Purchase flow & order management
-│
-└── shared/                 # Reusable widgets & UI components
+backend/
+├── config/
+│   └── database.js          # MongoDB connection with error handling
+├── models/
+│   └── User.js              # Enhanced User model with indexes
+├── routes/
+│   ├── auth.js              # NEW: Authentication endpoints
+│   ├── sync.js              # Updated: User validation
+│   ├── wallet.js
+│   └── rewards.js
+└── server.js                # Updated: Added auth routes
 ```
 
-**Data flow:** `UI → Riverpod Notifier → Use Case → Repository → Data Source (Firebase / HealthKit)`
+### New Authentication Flow
 
----
+1. **Flutter App**: User signs in with Google
+2. **Firebase**: Returns ID token
+3. **Backend**: Verifies Firebase token using Firebase Admin SDK
+4. **MongoDB**: Creates/updates user record
+5. **Response**: Returns user data and JWT for backend auth
 
-## 🛠️ Tech Stack
+### API Endpoints
 
-| Layer | Technology | Purpose |
-|---|---|---|
-| **UI** | Flutter (Dart) | Cross-platform mobile UI |
-| **State Management** | Riverpod | Reactive, compile-safe state |
-| **Backend** | Firebase Cloud Functions (TypeScript) | Anti-cheat, coin crediting logic |
-| **Database** | Cloud Firestore | Real-time NoSQL data sync |
-| **Authentication** | Firebase Auth + Google Sign-In | Secure user identity |
-| **Health Data** | HealthKit / Google Fit | Native step tracking |
-| **Architecture** | Clean Architecture | Separation of concerns |
+- `POST /api/auth/verify-token` - Verify Firebase token and create user
+- `POST /api/auth/refresh-user` - Get updated user data
+- `POST /api/sync` - Sync steps (now validates user exists)
 
----
+## Security Improvements
 
-## 📱 Screenshots
+### 1. **Token Validation**
+- Firebase Admin SDK for server-side token verification
+- Proper error handling for invalid tokens
+- JWT generation for backend authentication
 
-| Home | Wallet | Rewards |
-|:---:|:---:|:---:|
-| <img src="docs/screenshots/home.png" width="200" alt="Home Screen"/> | <img src="docs/screenshots/wallet.png" width="200" alt="Wallet"/> | <img src="docs/screenshots/rewards.png" width="200" alt="Rewards"/> |
+### 2. **Input Validation**
+- Comprehensive validation for all API inputs
+- Rate limiting to prevent abuse
+- Device ID validation for security
 
-> Screenshots coming soon. Run the app locally to see it in action!
+### 3. **Database Security**
+- Proper indexing for performance
+- Data validation and sanitization
+- Error handling for database operations
 
----
+## MongoDB Schema
 
-## 🚀 Getting Started
+```javascript
+{
+  uid: String (unique, indexed),
+  name: String,
+  email: String (unique, indexed),
+  photoUrl: String,
+  balance: Number (default: 0),
+  lifetimeSteps: Number (default: 0),
+  lifetimeCoins: Number (default: 0),
+  createdAt: Date,
+  lastSync: Date,
+  lastLoginAt: Date,
+  isActive: Boolean (default: true)
+}
+```
 
-### Prerequisites
+## Environment Configuration
 
-Make sure you have the following installed:
-
-- [Flutter SDK](https://docs.flutter.dev/get-started/install) (3.x or higher)
-- [Dart SDK](https://dart.dev/get-dart) (bundled with Flutter)
-- [Firebase CLI](https://firebase.google.com/docs/cli)
-- Android Studio or Xcode (for emulator/simulator)
-- A Firebase project with Blaze (pay-as-you-go) plan *(required for Cloud Functions)*
-
-### Installation
-
-**1. Clone the repository**
+### Backend (.env)
 ```bash
-git clone https://github.com/kalkidevs/wetcoin.git
-cd wetcoin
+# MongoDB Connection
+MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
+
+# JWT Secret (CHANGE IN PRODUCTION)
+JWT_SECRET=your_jwt_secret_key_here_change_this_in_production
+
+# Server
+PORT=5000
+NODE_ENV=development
 ```
 
-**2. Install Flutter dependencies**
+### Flutter (.env)
 ```bash
-cd flutter_app
-flutter pub get
+# Backend API URL
+API_BASE_URL=https://your-backend-url.com
+
+# Firebase Config
+FIREBASE_API_KEY=your_api_key
+FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+# ... other Firebase config
 ```
 
-**3. Configure Firebase**
+## Testing the Fix
 
+### 1. **Backend Testing**
 ```bash
-# Log in to Firebase
-firebase login
-
-# Initialize Firebase in the project
-firebase init
-```
-
-Then, in the Firebase Console:
-- Enable **Authentication** → Google Sign-In
-- Enable **Firestore**
-- Enable **Cloud Functions**
-- Download `google-services.json` → place in `flutter_app/android/app/`
-- Download `GoogleService-Info.plist` → place in `flutter_app/ios/Runner/`
-
-**4. Deploy Cloud Functions**
-```bash
-cd functions
+# Start backend
+cd backend
 npm install
-firebase deploy --only functions
+npm run dev
+
+# Test authentication endpoint
+curl -X POST http://localhost:5001/api/auth/verify-token \
+  -H "Content-Type: application/json" \
+  -d '{"idToken": "your_firebase_id_token"}'
 ```
 
-**5. Run the app**
-```bash
-cd flutter_app
-flutter run
+### 2. **Database Verification**
+```javascript
+// Check if users are being created
+db.users.find().pretty()
+
+// Check user count
+db.users.countDocuments()
 ```
 
-### Health Permissions
+### 3. **Flutter App Testing**
+1. Sign in with Google
+2. Check console logs for authentication flow
+3. Verify user data appears in MongoDB Atlas
+4. Test step syncing functionality
 
-- **iOS**: Add `NSHealthShareUsageDescription` and `NSHealthUpdateUsageDescription` to `Info.plist`
-- **Android**: Add `android.permission.ACTIVITY_RECOGNITION` to `AndroidManifest.xml`
+## Monitoring & Debugging
 
----
+### Backend Logs
+- Token verification success/failure
+- User creation/updates
+- Database connection status
+- API request/response logging
 
-## ⚙️ How the Anti-Cheat System Works
+### Flutter Logs
+- Authentication flow steps
+- Network request/response
+- Error handling
+- Database operations
 
-1. The client reports a step count batch to a Firestore collection.
-2. A Cloud Function triggers on write and validates the submission:
-   - Compares reported steps against previous recorded values.
-   - Checks for physiologically impossible step deltas.
-   - Cross-references timestamps against session history.
-3. If validation passes, coins are credited to the user's wallet atomically.
-4. Invalid submissions are flagged and discarded without crediting coins.
+### MongoDB Atlas Monitoring
+- Connection status
+- Query performance
+- User collection growth
+- Error rates
 
----
+## Performance Optimizations
 
-## 🗺️ Roadmap
+### 1. **Database Indexes**
+- Email and UID indexes for fast lookups
+- CreatedAt index for time-based queries
+- LastSync index for sync operations
 
-- [x] Core step tracking (HealthKit + Google Fit)
-- [x] Background sync service
-- [x] Digital wallet + transaction history
-- [x] Rewards marketplace
-- [x] Server-side anti-cheat validation
-- [ ] Leaderboard & social challenges
-- [ ] Push notifications for milestones
-- [ ] Widget support (iOS & Android)
-- [ ] Apple Watch / Wear OS companion app
+### 2. **Connection Pooling**
+- MongoDB connection reuse
+- Proper connection management
+- Error recovery mechanisms
 
----
+### 3. **Caching**
+- Consider adding Redis for session management
+- Cache frequently accessed user data
+- Implement rate limiting
 
-## 🤝 Contributing
+## Troubleshooting Common Issues
 
-Contributions are what make the open-source community great. Any contributions you make are **greatly appreciated**.
+### 1. **User Not Found in MongoDB**
+- Check Firebase token verification
+- Verify database connection
+- Check for errors in auth flow
 
-1. Fork the project
-2. Create your feature branch: `git checkout -b feat/amazing-feature`
-3. Commit your changes: `git commit -m 'feat: add amazing feature'`
-4. Push to the branch: `git push origin feat/amazing-feature`
-5. Open a Pull Request
+### 2. **Authentication Failures**
+- Verify Firebase project configuration
+- Check server client ID
+- Ensure proper OAuth consent screen setup
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for coding standards and the pull request process.
+### 3. **Database Connection Issues**
+- Verify MongoDB Atlas connection string
+- Check IP whitelist settings
+- Ensure proper network access
 
----
+### 4. **Step Sync Failures**
+- Verify user exists in database
+- Check rate limiting
+- Validate input parameters
 
-## 📄 License
+## Next Steps
 
-Distributed under the MIT License. See [`LICENSE`](LICENSE) for more information.
+1. **Production Deployment**
+   - Set up proper environment variables
+   - Configure SSL certificates
+   - Implement monitoring and alerting
 
----
+2. **Security Hardening**
+   - Change JWT secret in production
+   - Implement rate limiting
+   - Add request validation middleware
 
-## 📬 Contact
+3. **Performance Monitoring**
+   - Set up application monitoring
+   - Monitor database performance
+   - Implement caching strategies
 
-**Your Name** · [LinkedIn](https://linkedin.com/in/kalkidevs) · yashkushwaha65@gmail.com
+4. **Additional Features**
+   - Email verification
+   - Password reset functionality
+   - Social media integration
+   - Advanced analytics
 
-**Project Link:** [https://github.com/kalkidevs/wetcoin](https://github.com/kalkidevs/wetcoin)
+## Support
 
----
-
-<div align="center">
-
-If this project helped you, please consider giving it a ⭐ — it helps others find it!
-
-<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=100&section=footer" width="100%"/>
-
-</div>
+For issues related to:
+- Authentication flow: Check backend logs and Firebase configuration
+- Database issues: Verify MongoDB Atlas connection and permissions
+- Flutter integration: Check network requests and error handling
+- Performance: Monitor database queries and connection pooling

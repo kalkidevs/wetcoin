@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:lottie/lottie.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_button.dart';
@@ -41,16 +42,12 @@ class LoginScreen extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // App Icon
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.directions_run_rounded,
-                      size: 80,
-                      color: Colors.white,
+                  SizedBox(
+                    width: 250,
+                    height: 250,
+                    child: Lottie.asset(
+                      'assets/jogging.json',
+                      fit: BoxFit.contain,
                     ),
                   )
                       .animate()
@@ -99,7 +96,7 @@ class LoginScreen extends ConsumerWidget {
                           width: double.infinity,
                           child: AppButton(
                             label: 'Sign in with Google',
-                            icon: Icons.login,
+                            // icon: Icons.login,
                             isLoading: authState.status == AuthStatus.loading,
                             onPressed: () {
                               ref
