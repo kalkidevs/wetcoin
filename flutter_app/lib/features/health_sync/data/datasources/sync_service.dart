@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:sweatcoin/core/config/env_config.dart';
 import 'package:sweatcoin/core/utils/logger.dart';
+import 'package:sweatcoin/core/services/api_service.dart';
 import 'health_service.dart';
 import 'package:intl/intl.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class SyncService {
   final HealthService _healthService;
+  final ApiService _api = ApiService();
 
   SyncService(this._healthService);
 
@@ -21,7 +20,7 @@ class SyncService {
 
   Future<Map<String, dynamic>> syncDate(DateTime date) async {
     try {
-      // 1. Get Steps
+      // 1. Get Steps from Health Connect / HealthKit
       int steps = await _healthService.getStepsForDate(date);
 
       // 2. Get Device ID
@@ -31,8 +30,6 @@ class SyncService {
 
       debugPrint("Syncing steps for $dateStr: $steps");
 
-      // 3. Call REST API with environment-based URL
-      final endpoint = EnvConfig.syncEndpoint;
       AppLogger.section('STEP SYNC OPERATION');
       AppLogger.syncSteps(userId, steps, date, deviceId);
       AppLogger.apiCall('/api/sync', 'POST', {
@@ -41,32 +38,25 @@ class SyncService {
         'date': dateStr,
         'deviceId': deviceId
       });
-      AppLogger.config('API_URL', endpoint);
 
-      final response = await http.post(
-        Uri.parse(endpoint),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'userId': userId,
-          'steps': steps,
-          'date': dateStr,
-          'deviceId': deviceId,
-          'requestTimestamp': DateTime.now().millisecondsSinceEpoch,
-        }),
-      );
+      // 3. Call backend API using ApiService (sends backend JWT token automatically)
+      final result = await _api.post('/api/sync', {
+        'userId': userId,
+        'steps': steps,
+        'date': dateStr,
+        'deviceId': deviceId,
+        'requestTimestamp': DateTime.now().millisecondsSinceEpoch,
+      });
 
-      if (response.statusCode == 200) {
-        final result = jsonDecode(response.body);
+      if (result['success'] == true) {
         debugPrint("Sync successful: $result");
         return result;
       } else {
-        debugPrint("Sync failed with status: ${response.statusCode}");
-        debugPrint("Response body: ${response.body}");
+        debugPrint("Sync failed: ${result['error']}");
         return {
           'success': false,
-          'error': 'Sync failed. Please try again later.',
+          'error': result['error'] ?? 'Sync failed',
+          'statusCode': result['statusCode'],
         };
       }
     } catch (e) {
@@ -92,7 +82,18 @@ class SyncService {
   }
 
   Future<String> _getUserId() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('userId') ?? '';
+    // First try Firebase Auth, which is the most reliable source of truth
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      return currentUser.uid;
+    }
+
+    // Fallback to ApiService stored user ID
+    final storedId = await _api.getUserId();
+    if (storedId != null && storedId.isNotEmpty) {
+      return storedId;
+    }
+
+    return '';
   }
 }

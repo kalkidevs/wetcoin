@@ -1,13 +1,13 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:sweatcoin/core/config/env_config.dart';
 import 'package:sweatcoin/core/utils/logger.dart';
+import 'package:sweatcoin/core/services/api_service.dart';
 
 /// Service for communicating with our backend API
 class AuthBackendService {
-  final String _baseUrl =
-      dotenv.env['API_BASE_URL'] ?? 'https://sweatcoin-backend.onrender.com';
+  String get _baseUrl => EnvConfig.baseUrl;
 
   /// Verify Firebase ID token with backend and get user data
   Future<Map<String, dynamic>> verifyToken(String idToken) async {
@@ -43,6 +43,12 @@ class AuthBackendService {
             'Token verified successfully. User: ${result['user']['name']} (${result['user']['email']})');
         AppLogger.auth('USER_DATA_RECEIVED',
             'Balance: ${result['user']['balance']}, Steps: ${result['user']['lifetimeSteps']}');
+
+        // Save JWT token for authenticated API calls
+        if (result['token'] != null && result['user']['uid'] != null) {
+          await ApiService().saveToken(result['token'], result['user']['uid']);
+        }
+
         return result;
       } else if (response.statusCode == 404) {
         AppLogger.warn('TOKEN_VERIFICATION_FAILED',
@@ -111,31 +117,20 @@ class AuthBackendService {
     try {
       debugPrint('[AuthBackendService] Syncing steps with backend...');
 
-      final response = await http.post(
-        Uri.parse('$_baseUrl/api/sync'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'userId': userId,
-          'steps': steps,
-          'date': date.toIso8601String().split('T').first, // YYYY-MM-DD format
-          'deviceId': deviceId,
-          'requestTimestamp': DateTime.now().millisecondsSinceEpoch,
-        }),
-      );
+      final result = await ApiService().post('/api/sync', {
+        'userId': userId,
+        'steps': steps,
+        'date': date.toIso8601String().split('T').first, // YYYY-MM-DD format
+        'deviceId': deviceId,
+        'requestTimestamp': DateTime.now().millisecondsSinceEpoch,
+      });
 
-      debugPrint(
-          '[AuthBackendService] Sync response status: ${response.statusCode}');
-      debugPrint('[AuthBackendService] Sync response body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        final result = jsonDecode(response.body);
+      if (result['success'] == true) {
         debugPrint('[AuthBackendService] Steps synced successfully');
         return result;
       } else {
-        debugPrint('[AuthBackendService] Steps sync failed');
-        return {'success': false, 'error': 'Failed to sync steps'};
+        debugPrint('[AuthBackendService] Steps sync failed: ${result['error']}');
+        return {'success': false, 'error': result['error'] ?? 'Failed to sync steps'};
       }
     } catch (e) {
       debugPrint('[AuthBackendService] Error syncing steps: $e');

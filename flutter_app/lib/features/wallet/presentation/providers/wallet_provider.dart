@@ -1,50 +1,61 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/repositories/wallet_repository.dart';
 
 class WalletState {
   final List<Map<String, dynamic>> transactions;
+  final double balance;
+  final int lifetimeCoins;
+  final int lifetimeSteps;
   final bool isLoading;
   final bool hasMore;
-  final DocumentSnapshot? lastDocument;
+  final int currentSkip;
   final Object? error;
 
   WalletState({
     this.transactions = const [],
+    this.balance = 0.0,
+    this.lifetimeCoins = 0,
+    this.lifetimeSteps = 0,
     this.isLoading = false,
     this.hasMore = true,
-    this.lastDocument,
+    this.currentSkip = 0,
     this.error,
   });
 
   WalletState copyWith({
     List<Map<String, dynamic>>? transactions,
+    double? balance,
+    int? lifetimeCoins,
+    int? lifetimeSteps,
     bool? isLoading,
     bool? hasMore,
-    DocumentSnapshot? lastDocument,
+    int? currentSkip,
     Object? error,
   }) {
     return WalletState(
       transactions: transactions ?? this.transactions,
+      balance: balance ?? this.balance,
+      lifetimeCoins: lifetimeCoins ?? this.lifetimeCoins,
+      lifetimeSteps: lifetimeSteps ?? this.lifetimeSteps,
       isLoading: isLoading ?? this.isLoading,
       hasMore: hasMore ?? this.hasMore,
-      lastDocument: lastDocument ?? this.lastDocument,
+      currentSkip: currentSkip ?? this.currentSkip,
       error: error,
     );
   }
 }
 
 final walletNotifierProvider =
-    StateNotifierProvider<WalletNotifier, WalletState>((ref) {
-  return WalletNotifier(ref.watch(walletRepositoryProvider));
-});
+    NotifierProvider<WalletNotifier, WalletState>(WalletNotifier.new);
 
-class WalletNotifier extends StateNotifier<WalletState> {
-  final WalletRepository _repository;
+class WalletNotifier extends Notifier<WalletState> {
   static const int _limit = 15;
 
-  WalletNotifier(this._repository) : super(WalletState()) {
-    loadTransactions();
+  @override
+  WalletState build() {
+    // Auto-load transactions when provider is first read
+    Future.microtask(() => loadTransactions());
+    return WalletState();
   }
 
   Future<void> loadTransactions({bool refresh = false}) async {
@@ -54,32 +65,45 @@ class WalletNotifier extends StateNotifier<WalletState> {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
-      final snapshot = await _repository.getTransactions(
-        limit: _limit,
-        lastDocument: refresh ? null : state.lastDocument,
-      );
+      final repository = ref.read(walletRepositoryProvider);
+      final skip = refresh ? 0 : state.currentSkip;
 
-      final newTransactions = snapshot.docs.map((doc) {
-        final data = doc.data();
-        data['id'] = doc.id; // Add ID
-        return data;
-      }).toList();
+      final result = await repository.getWallet(limit: _limit, skip: skip);
+
+      if (result['success'] != true) {
+        state = state.copyWith(
+          isLoading: false,
+          error: result['error'] ?? 'Failed to load wallet',
+        );
+        return;
+      }
+
+      final newTransactions = List<Map<String, dynamic>>.from(result['data'] ?? []);
+      final balance = (result['balance'] as num?)?.toDouble() ?? state.balance;
+      final lifetimeCoins = (result['lifetimeCoins'] as num?)?.toInt() ?? state.lifetimeCoins;
+      final lifetimeSteps = (result['lifetimeSteps'] as num?)?.toInt() ?? state.lifetimeSteps;
+      final pagination = result['pagination'] as Map<String, dynamic>?;
+      final hasMore = pagination?['hasMore'] ?? false;
 
       if (refresh) {
         state = state.copyWith(
           transactions: newTransactions,
+          balance: balance,
+          lifetimeCoins: lifetimeCoins,
+          lifetimeSteps: lifetimeSteps,
           isLoading: false,
-          hasMore: newTransactions.length >= _limit,
-          lastDocument: snapshot.docs.isNotEmpty ? snapshot.docs.last : null,
+          hasMore: hasMore,
+          currentSkip: skip + newTransactions.length,
         );
       } else {
         state = state.copyWith(
           transactions: [...state.transactions, ...newTransactions],
+          balance: balance,
+          lifetimeCoins: lifetimeCoins,
+          lifetimeSteps: lifetimeSteps,
           isLoading: false,
-          hasMore: newTransactions.length >= _limit,
-          lastDocument: snapshot.docs.isNotEmpty
-              ? snapshot.docs.last
-              : state.lastDocument,
+          hasMore: hasMore,
+          currentSkip: skip + newTransactions.length,
         );
       }
     } catch (e) {

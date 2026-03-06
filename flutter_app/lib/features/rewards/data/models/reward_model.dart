@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../domain/entities/reward.dart';
 
 class RewardModel extends Reward {
@@ -11,15 +10,16 @@ class RewardModel extends Reward {
     required super.active,
   });
 
-  factory RewardModel.fromSnapshot(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  /// Parse from backend REST API JSON response
+  /// Backend returns: { _id, name, cost, description, imageUrl, stock, active }
+  factory RewardModel.fromJson(Map<String, dynamic> json) {
     return RewardModel(
-      id: doc.id,
-      title: data['title'] ?? '',
-      image: data['image'] ?? '',
-      costCoins: data['costCoins'] ?? 0,
-      stock: data['stock'] ?? 0,
-      active: data['active'] ?? false,
+      id: json['_id']?.toString() ?? '',
+      title: json['name'] ?? json['title'] ?? '',
+      image: json['imageUrl'] ?? json['image'] ?? '',
+      costCoins: (json['cost'] ?? json['costCoins'] ?? 0) as int,
+      stock: (json['stock'] ?? 0) as int,
+      active: json['active'] ?? false,
     );
   }
 

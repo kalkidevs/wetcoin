@@ -1,6 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import '../../../../core/errors/exceptions.dart';
+import '../../../../core/services/api_service.dart';
 import '../models/reward_model.dart';
 
 abstract class RewardRemoteDataSource {
@@ -10,21 +9,26 @@ abstract class RewardRemoteDataSource {
 }
 
 class RewardRemoteDataSourceImpl implements RewardRemoteDataSource {
-  final FirebaseFirestore firestore;
-  final FirebaseFunctions functions;
+  final ApiService _api = ApiService();
 
-  RewardRemoteDataSourceImpl(this.firestore, this.functions);
+  RewardRemoteDataSourceImpl();
 
   @override
   Future<List<RewardModel>> getActiveRewards() async {
     try {
-      final snapshot = await firestore
-          .collection('rewards')
-          .where('active', isEqualTo: true)
-          .get();
+      // Rewards listing is public (no auth needed)
+      final result = await _api.get('/api/rewards', auth: false);
 
-      return snapshot.docs.map((doc) => RewardModel.fromSnapshot(doc)).toList();
+      if (result['success'] != true) {
+        throw ServerException(result['error'] ?? 'Failed to fetch rewards');
+      }
+
+      final data = result['data'] as List<dynamic>? ?? [];
+      return data
+          .map((json) => RewardModel.fromJson(json as Map<String, dynamic>))
+          .toList();
     } catch (e) {
+      if (e is ServerException) rethrow;
       throw ServerException(e.toString());
     }
   }
@@ -33,16 +37,24 @@ class RewardRemoteDataSourceImpl implements RewardRemoteDataSource {
   Future<String> redeemReward(
       {required String rewardId, required String shippingAddress}) async {
     try {
-      final callable = functions.httpsCallable('redeemReward');
-      final result = await callable.call({
+      final userId = await _api.getUserId();
+      if (userId == null || userId.isEmpty) {
+        throw ServerException('User not logged in');
+      }
+
+      final result = await _api.post('/api/rewards/redeem', {
+        'userId': userId,
         'rewardId': rewardId,
         'shippingAddress': shippingAddress,
       });
-      return result.data['orderId'];
-    } catch (e) {
-      if (e is FirebaseFunctionsException) {
-        throw ServerException(e.message ?? 'Redemption failed');
+
+      if (result['success'] != true) {
+        throw ServerException(result['error'] ?? 'Redemption failed');
       }
+
+      return result['orderId'] ?? '';
+    } catch (e) {
+      if (e is ServerException) rethrow;
       throw ServerException(e.toString());
     }
   }

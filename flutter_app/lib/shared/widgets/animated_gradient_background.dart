@@ -44,8 +44,8 @@ class _AnimatedGradientBackgroundState extends State<AnimatedGradientBackground>
     final color2End =
         isDark ? const Color(0xFF121212) : const Color(0xFFF0F0F0);
 
-    return AnimatedBuilder(
-      animation: _controller,
+    return ListenableBuilder(
+      listenable: _controller,
       child: widget.child,
       builder: (context, child) {
         final c1 = Color.lerp(color1Begin, color1End, _controller.value);

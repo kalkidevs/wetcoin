@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/datasources/reward_remote_datasource.dart';
 import '../../data/repositories/reward_repository_impl.dart';
@@ -8,10 +6,7 @@ import '../../domain/usecases/get_active_rewards.dart';
 import '../../domain/usecases/redeem_reward.dart';
 
 final rewardRemoteDataSourceProvider = Provider<RewardRemoteDataSource>((ref) {
-  return RewardRemoteDataSourceImpl(
-    FirebaseFirestore.instance,
-    FirebaseFunctions.instance,
-  );
+  return RewardRemoteDataSourceImpl();
 });
 
 final rewardRepositoryProvider = Provider<RewardRepositoryImpl>((ref) {

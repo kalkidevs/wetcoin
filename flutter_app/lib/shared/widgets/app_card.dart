@@ -107,7 +107,7 @@ class _AppCardState extends State<AppCard>
     if (widget.color != null) return widget.color!;
     return switch (widget.variant) {
       AppCardVariant.elevated  => cs.surface,
-      AppCardVariant.filled    => cs.surfaceVariant,
+      AppCardVariant.filled    => cs.surfaceContainerHighest,
       AppCardVariant.outlined  => cs.surface,
       AppCardVariant.ghost     => Colors.transparent,
       AppCardVariant.gradient  => Colors.transparent,
@@ -222,7 +222,7 @@ class _AppCardState extends State<AppCard>
     Widget card = Card(
       color: _resolveColor(context),
       elevation: _resolveElevation(),
-      shadowColor: Theme.of(context).colorScheme.shadow.withOpacity(0.12),
+      shadowColor: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.12),
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: br,
@@ -241,9 +241,9 @@ class _AppCardState extends State<AppCard>
         onTapCancel: () => _pressCtrl.reverse(),
         borderRadius: br,
         splashColor:
-        Theme.of(context).colorScheme.primary.withOpacity(0.08),
+        Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
         highlightColor:
-        Theme.of(context).colorScheme.primary.withOpacity(0.04),
+        Theme.of(context).colorScheme.primary.withValues(alpha: 0.04),
         child: content,
       )
           : content,
@@ -251,8 +251,8 @@ class _AppCardState extends State<AppCard>
 
     // Press-scale wrapper
     if (tappable) {
-      card = AnimatedBuilder(
-        animation: _scaleAnim,
+      card = ListenableBuilder(
+        listenable: _scaleAnim,
         builder: (_, child) =>
             Transform.scale(scale: _scaleAnim.value, child: child),
         child: card,
@@ -333,8 +333,8 @@ class _SkeletonShimmerState extends State<_SkeletonShimmer>
     final base   = isDark ? const Color(0xFF2A2A2A) : const Color(0xFFE8E8E8);
     final shine  = isDark ? const Color(0xFF3A3A3A) : const Color(0xFFF5F5F5);
 
-    return AnimatedBuilder(
-      animation: _anim,
+    return ListenableBuilder(
+      listenable: _anim,
       builder: (_, __) => Container(
         height: widget.height,
         padding: const EdgeInsets.all(16),
@@ -349,9 +349,9 @@ class _SkeletonShimmerState extends State<_SkeletonShimmer>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SkeletonBar(width: 140, height: 14, color: base.withOpacity(0.6)),
+            _SkeletonBar(width: 140, height: 14, color: base.withValues(alpha: 0.6)),
             const SizedBox(height: 8),
-            _SkeletonBar(width: 220, height: 10, color: base.withOpacity(0.4)),
+            _SkeletonBar(width: 220, height: 10, color: base.withValues(alpha: 0.4)),
           ],
         ),
       ),

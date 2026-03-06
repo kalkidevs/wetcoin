@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const os = require('os');
 const connectDB = require('./config/database');
 
 // Load environment variables
@@ -30,6 +31,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/sync', require('./routes/sync'));
 app.use('/api/wallet', require('./routes/wallet'));
 app.use('/api/rewards', require('./routes/rewards'));
+app.use('/api/orders', require('./routes/orders'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -75,10 +77,27 @@ app.use('*', (req, res) => {
 // Start server
 const PORT = parseInt(process.env.PORT || 5000, 10);
 
+// Helper to get local network IP
+function getLocalIP() {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  return 'localhost';
+}
+
 function startServer(port) {
-  app.listen(port, () => {
+  const HOST = '0.0.0.0'; // Bind to all interfaces so physical devices can connect
+  app.listen(port, HOST, () => {
+    const localIP = getLocalIP();
     console.log(`✅ Server running on port ${port}`);
-    console.log(`📍 Health check: http://localhost:${port}/health`);
+    console.log(`📍 Local:   http://localhost:${port}/health`);
+    console.log(`📱 Network: http://${localIP}:${port}/health`);
+    console.log(`\n💡 Use http://${localIP}:${port} as API_BASE_URL in your Flutter .env for physical devices`);
   }).on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
       console.log(`❌ Port ${port} is already in use. Trying port ${port + 1}...`);

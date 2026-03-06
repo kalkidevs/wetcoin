@@ -175,10 +175,10 @@ class _AppButtonState extends State<AppButton>
   };
 
   Color get _shadowColor => switch (widget.type) {
-    AppButtonType.primary   => AppColors.primary.withOpacity(0.35),
-    AppButtonType.secondary => AppColors.secondary.withOpacity(0.30),
-    AppButtonType.danger    => AppColors.error.withOpacity(0.30),
-    AppButtonType.success   => AppColors.success.withOpacity(0.30),
+    AppButtonType.primary   => AppColors.primary.withValues(alpha: 0.35),
+    AppButtonType.secondary => AppColors.secondary.withValues(alpha: 0.30),
+    AppButtonType.danger    => AppColors.error.withValues(alpha: 0.30),
+    AppButtonType.success   => AppColors.success.withValues(alpha: 0.30),
     _                       => Colors.transparent,
   };
 
@@ -221,7 +221,7 @@ class _AppButtonState extends State<AppButton>
               style: TextStyle(
                   fontSize: _fontSize,
                   fontWeight: FontWeight.w600,
-                  color: _fgColor.withOpacity(0.7)),
+                  color: _fgColor.withValues(alpha: 0.7)),
             ),
           ],
         ],
@@ -299,9 +299,9 @@ class _AppButtonState extends State<AppButton>
 
     // Standard Material button
     final style = ButtonStyle(
-      backgroundColor: MaterialStateProperty.resolveWith((states) {
-        if (states.contains(MaterialState.disabled)) {
-          return _bgColor.withOpacity(
+      backgroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return _bgColor.withValues(alpha:
               widget.type == AppButtonType.outline ||
                   widget.type == AppButtonType.ghost
                   ? 0
@@ -309,44 +309,44 @@ class _AppButtonState extends State<AppButton>
         }
         return _bgColor;
       }),
-      foregroundColor: MaterialStateProperty.resolveWith((states) {
-        if (states.contains(MaterialState.disabled)) {
-          return _fgColor.withOpacity(0.45);
+      foregroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return _fgColor.withValues(alpha: 0.45);
         }
         return _fgColor;
       }),
-      overlayColor: MaterialStateProperty.all(
-          _fgColor.withOpacity(0.10)),
-      side: MaterialStateProperty.resolveWith((states) {
+      overlayColor: WidgetStateProperty.all(
+          _fgColor.withValues(alpha: 0.10)),
+      side: WidgetStateProperty.resolveWith((states) {
         if (_borderColor == null) return BorderSide.none;
         return BorderSide(
-          color: states.contains(MaterialState.disabled)
-              ? _borderColor!.withOpacity(0.35)
+          color: states.contains(WidgetState.disabled)
+              ? _borderColor!.withValues(alpha: 0.35)
               : _borderColor!,
           width: 1.5,
         );
       }),
-      shape: MaterialStateProperty.all(
+      shape: WidgetStateProperty.all(
           RoundedRectangleBorder(borderRadius: br)),
-      padding: MaterialStateProperty.all(
+      padding: WidgetStateProperty.all(
           iconOnly ? EdgeInsets.zero : _padding),
-      minimumSize: MaterialStateProperty.all(
+      minimumSize: WidgetStateProperty.all(
           iconOnly ? Size(_height, _height) : Size(0, _height)),
-      maximumSize: MaterialStateProperty.all(
+      maximumSize: WidgetStateProperty.all(
           widget.fullWidth
               ? const Size(double.infinity, 200)
               : const Size(double.infinity, 200)),
-      elevation: MaterialStateProperty.resolveWith((states) {
+      elevation: WidgetStateProperty.resolveWith((states) {
         if (!_hasShadow) return 0;
-        if (states.contains(MaterialState.pressed)) return 1;
-        if (states.contains(MaterialState.disabled)) return 0;
+        if (states.contains(WidgetState.pressed)) return 1;
+        if (states.contains(WidgetState.disabled)) return 0;
         return switch (widget.size) {
           AppButtonSize.small  => 2.0,
           AppButtonSize.medium => 3.0,
           AppButtonSize.large  => 4.0,
         };
       }),
-      shadowColor: MaterialStateProperty.all(_shadowColor),
+      shadowColor: WidgetStateProperty.all(_shadowColor),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       animationDuration: const Duration(milliseconds: 100),
     );
@@ -375,8 +375,8 @@ class _AppButtonState extends State<AppButton>
     }
 
     // Press-scale animation
-    btn = AnimatedBuilder(
-      animation: _scaleAnim,
+    btn = ListenableBuilder(
+      listenable: _scaleAnim,
       builder: (_, child) =>
           Transform.scale(scale: _scaleAnim.value, child: child),
       child: btn,

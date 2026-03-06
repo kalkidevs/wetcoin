@@ -1,259 +1,192 @@
-# Sweatcoin Backend - Authentication & MongoDB Integration
+<div align="center">
 
-## Overview
+# 🏃 Sweatcoin India
 
-This document provides a comprehensive guide to troubleshooting and optimizing the Google sign-in/signup functionality with Firebase Authentication and MongoDB Atlas integration.
+### Walk. Earn. Redeem.
 
-## Issues Identified & Solutions Implemented
+**Turn your daily steps into real rewards.**
 
-### 1. **Missing Backend Authentication Flow**
+![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=node.js&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white)
+![Firebase](https://img.shields.io/badge/Firebase-Auth-FFCA28?logo=firebase&logoColor=black)
+![License](https://img.shields.io/badge/License-MIT-blue)
 
-**Problem**: The Flutter app was only using Firebase Authentication without communicating with the backend to store user data in MongoDB.
+</div>
 
-**Solution**: 
-- Created `/api/auth/verify-token` endpoint to verify Firebase ID tokens
-- Implemented user creation/updates in MongoDB when users sign in
-- Added JWT token generation for backend authentication
+---
 
-### 2. **Database Connection Issues**
+## 🌟 What is Sweatcoin India?
 
-**Problem**: MongoDB connection was not properly established, causing silent failures.
+Sweatcoin India is a **fitness rewards app** that converts your daily walking steps into **SWC coins** — redeemable for real products and offers. Built with a modern Flutter frontend and a robust Node.js backend, it integrates with **Google Fit / Health Connect** (Android) and **Apple Health** (iOS) to track your activity seamlessly.
 
-**Solution**:
-- Fixed MongoDB connection string in `.env`
-- Added proper error handling and logging
-- Implemented connection retry logic
-- Added database indexes for better performance
+> 💡 **The idea is simple:** Walk more → Earn more → Redeem rewards.
 
-### 3. **User Data Persistence Problems**
+---
 
-**Problem**: User data was being stored in Firebase Firestore but not in MongoDB Atlas.
+## ✨ Features
 
-**Solution**:
-- Created proper User model with all required fields
-- Implemented `findOrCreate` static method for efficient user management
-- Added pre-save middleware for automatic timestamp updates
-- Integrated user creation with authentication flow
+| Feature | Description |
+|---------|-------------|
+| 🚶 **Step Tracking** | Auto-syncs with Google Fit / Health Connect / Apple Health |
+| 🪙 **Coin Earning** | Earn 1 SWC for every 100 steps (max 150/day) |
+| 🎁 **Rewards Store** | Browse and redeem coins for real products |
+| 💰 **Wallet** | Track balance, transaction history, lifetime stats |
+| 🏆 **Achievements** | Milestone badges from First Steps (1K) to Legend (100K) |
+| 🌙 **Dark Mode** | Beautiful dark theme with Lottie toggle animation |
+| 🔐 **Google Sign-In** | Secure authentication via Firebase + JWT backend |
+| 📊 **Weekly Trends** | 7-day step history chart |
 
-### 4. **Missing Error Handling & Logging**
+---
 
-**Problem**: Silent failures made debugging difficult.
+## 📱 Screenshots
 
-**Solution**:
-- Added comprehensive logging throughout the application
-- Implemented proper error handling with meaningful messages
-- Created centralized logging utility for Flutter app
-- Added validation and sanitization for all inputs
+> *Run the app to see the premium UI with gradient hero headers, glassmorphic cards, animated progress rings, and smooth transitions.*
 
-## Architecture Changes
+---
 
-### Backend Structure
+## 🏗️ Tech Stack
 
-```
-backend/
-├── config/
-│   └── database.js          # MongoDB connection with error handling
-├── models/
-│   └── User.js              # Enhanced User model with indexes
-├── routes/
-│   ├── auth.js              # NEW: Authentication endpoints
-│   ├── sync.js              # Updated: User validation
-│   ├── wallet.js
-│   └── rewards.js
-└── server.js                # Updated: Added auth routes
-```
+### Frontend (Flutter)
+- **State Management:** Riverpod
+- **Animations:** flutter_animate + Lottie
+- **Health Data:** `health` package (Health Connect + Apple Health)
+- **Auth:** Firebase Auth (Google Sign-In)
+- **HTTP:** http package with JWT token management
 
-### New Authentication Flow
+### Backend (Node.js)
+- **Framework:** Express.js
+- **Database:** MongoDB Atlas (Mongoose ODM)
+- **Auth:** Firebase Admin SDK + JWT
+- **API:** RESTful with paginated endpoints
 
-1. **Flutter App**: User signs in with Google
-2. **Firebase**: Returns ID token
-3. **Backend**: Verifies Firebase token using Firebase Admin SDK
-4. **MongoDB**: Creates/updates user record
-5. **Response**: Returns user data and JWT for backend auth
+---
 
-### API Endpoints
+## 🚀 Getting Started
 
-- `POST /api/auth/verify-token` - Verify Firebase token and create user
-- `POST /api/auth/refresh-user` - Get updated user data
-- `POST /api/sync` - Sync steps (now validates user exists)
+### Prerequisites
+- Flutter SDK (3.x+)
+- Node.js (18+)
+- MongoDB Atlas account
+- Firebase project with Auth enabled
 
-## Security Improvements
-
-### 1. **Token Validation**
-- Firebase Admin SDK for server-side token verification
-- Proper error handling for invalid tokens
-- JWT generation for backend authentication
-
-### 2. **Input Validation**
-- Comprehensive validation for all API inputs
-- Rate limiting to prevent abuse
-- Device ID validation for security
-
-### 3. **Database Security**
-- Proper indexing for performance
-- Data validation and sanitization
-- Error handling for database operations
-
-## MongoDB Schema
-
-```javascript
-{
-  uid: String (unique, indexed),
-  name: String,
-  email: String (unique, indexed),
-  photoUrl: String,
-  balance: Number (default: 0),
-  lifetimeSteps: Number (default: 0),
-  lifetimeCoins: Number (default: 0),
-  createdAt: Date,
-  lastSync: Date,
-  lastLoginAt: Date,
-  isActive: Boolean (default: true)
-}
-```
-
-## Environment Configuration
-
-### Backend (.env)
+### 1. Clone the repo
 ```bash
-# MongoDB Connection
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
-
-# JWT Secret (CHANGE IN PRODUCTION)
-JWT_SECRET=your_jwt_secret_key_here_change_this_in_production
-
-# Server
-PORT=5000
-NODE_ENV=development
+git clone https://github.com/your-username/sweatcoin-india.git
+cd sweatcoin-india
 ```
 
-### Flutter (.env)
+### 2. Backend Setup
 ```bash
-# Backend API URL
-API_BASE_URL=https://your-backend-url.com
-
-# Firebase Config
-FIREBASE_API_KEY=your_api_key
-FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-# ... other Firebase config
-```
-
-## Testing the Fix
-
-### 1. **Backend Testing**
-```bash
-# Start backend
 cd backend
 npm install
-npm run dev
-
-# Test authentication endpoint
-curl -X POST http://localhost:5001/api/auth/verify-token \
-  -H "Content-Type: application/json" \
-  -d '{"idToken": "your_firebase_id_token"}'
 ```
 
-### 2. **Database Verification**
-```javascript
-// Check if users are being created
-db.users.find().pretty()
-
-// Check user count
-db.users.countDocuments()
+Create a `.env` file in `backend/`:
+```env
+PORT=3000
+MONGODB_URI=your_mongodb_connection_string
+JWT_SECRET=your_jwt_secret
 ```
 
-### 3. **Flutter App Testing**
-1. Sign in with Google
-2. Check console logs for authentication flow
-3. Verify user data appears in MongoDB Atlas
-4. Test step syncing functionality
+Place your Firebase service account key at `backend/serviceAccountKey.json`.
 
-## Monitoring & Debugging
+```bash
+npm start
+```
 
-### Backend Logs
-- Token verification success/failure
-- User creation/updates
-- Database connection status
-- API request/response logging
+### 3. Flutter Setup
+```bash
+cd flutter_app
+flutter pub get
+```
 
-### Flutter Logs
-- Authentication flow steps
-- Network request/response
-- Error handling
-- Database operations
+Create a `.env` file in `flutter_app/`:
+```env
+API_BASE_URL=http://your-server-ip:3000
+```
 
-### MongoDB Atlas Monitoring
-- Connection status
-- Query performance
-- User collection growth
-- Error rates
+```bash
+flutter run
+```
 
-## Performance Optimizations
+---
 
-### 1. **Database Indexes**
-- Email and UID indexes for fast lookups
-- CreatedAt index for time-based queries
-- LastSync index for sync operations
+## 📂 Project Structure
 
-### 2. **Connection Pooling**
-- MongoDB connection reuse
-- Proper connection management
-- Error recovery mechanisms
+```
+sweatcoin/
+├── backend/                    # Node.js REST API
+│   ├── models/                 # Mongoose schemas (User, Transaction, Reward, Order)
+│   ├── routes/                 # API routes (auth, sync, wallet, rewards)
+│   ├── middleware/              # JWT authentication middleware
+│   └── server.js               # Express entry point
+│
+├── flutter_app/                # Flutter mobile app
+│   └── lib/
+│       ├── core/               # Theme, design system, services
+│       │   ├── theme/          # Colors, typography, design tokens
+│       │   └── services/       # API service, connection service
+│       ├── features/           # Feature modules
+│       │   ├── auth/           # Google Sign-In + JWT auth
+│       │   ├── health_sync/    # Step tracking + sync
+│       │   ├── wallet/         # Coin balance + transactions
+│       │   ├── rewards/        # Reward browsing + redemption
+│       │   ├── profile/        # User profile + settings
+│       │   └── orders/         # Order tracking
+│       └── shared/             # Reusable widgets
+│
+└── README.md
+```
 
-### 3. **Caching**
-- Consider adding Redis for session management
-- Cache frequently accessed user data
-- Implement rate limiting
+---
 
-## Troubleshooting Common Issues
+## 🔌 API Endpoints
 
-### 1. **User Not Found in MongoDB**
-- Check Firebase token verification
-- Verify database connection
-- Check for errors in auth flow
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/auth/verify-token` | Verify Firebase token → issue JWT |
+| `POST` | `/api/sync` | Sync daily steps + earn coins |
+| `GET` | `/api/wallet/balance` | Get coin balance + lifetime stats |
+| `GET` | `/api/wallet/transactions` | Paginated transaction history |
+| `GET` | `/api/rewards` | List available rewards |
+| `POST` | `/api/rewards/redeem` | Redeem coins for a reward |
 
-### 2. **Authentication Failures**
-- Verify Firebase project configuration
-- Check server client ID
-- Ensure proper OAuth consent screen setup
+All endpoints (except auth) require `Authorization: Bearer <JWT>` header.
 
-### 3. **Database Connection Issues**
-- Verify MongoDB Atlas connection string
-- Check IP whitelist settings
-- Ensure proper network access
+---
 
-### 4. **Step Sync Failures**
-- Verify user exists in database
-- Check rate limiting
-- Validate input parameters
+## 🎨 Design Philosophy
 
-## Next Steps
+- **Premium Aesthetic** — Gradient hero headers, glassmorphic cards, animated progress rings
+- **Google Fit Inspired** — Clean layout, strong visual hierarchy, metric-focused
+- **Indian Design Accents** — Warm saffron tones, gold coin colors, vibrant gradients
+- **60fps Performance** — Optimized animations with flutter_animate, no jank
 
-1. **Production Deployment**
-   - Set up proper environment variables
-   - Configure SSL certificates
-   - Implement monitoring and alerting
+---
 
-2. **Security Hardening**
-   - Change JWT secret in production
-   - Implement rate limiting
-   - Add request validation middleware
+## 🤝 Contributing
 
-3. **Performance Monitoring**
-   - Set up application monitoring
-   - Monitor database performance
-   - Implement caching strategies
+Contributions are welcome! Feel free to open issues or submit pull requests.
 
-4. **Additional Features**
-   - Email verification
-   - Password reset functionality
-   - Social media integration
-   - Advanced analytics
+1. Fork the project
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## Support
+---
 
-For issues related to:
-- Authentication flow: Check backend logs and Firebase configuration
-- Database issues: Verify MongoDB Atlas connection and permissions
-- Flutter integration: Check network requests and error handling
-- Performance: Monitor database queries and connection pooling
+## 📄 License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+
+---
+
+<div align="center">
+
+Made with ❤️ by [TheGujaratStore.com](https://thegujaratstore.com)
+
+**⭐ Star this repo if you found it useful!**
+
+</div>

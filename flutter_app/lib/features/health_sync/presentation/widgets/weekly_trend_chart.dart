@@ -22,7 +22,7 @@ class WeeklyTrendChart extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -99,7 +99,7 @@ class _ChartPainter extends CustomPainter {
     final barWidth = slotWidth * 0.4;
 
     final paint = Paint()
-      ..color = color.withOpacity(0.8)
+      ..color = color.withValues(alpha: 0.8)
       ..style = PaintingStyle.fill
       ..strokeCap = StrokeCap.round;
 
@@ -123,7 +123,7 @@ class _ChartPainter extends CustomPainter {
         Rect.fromLTRB(left, 0, right, bottom),
         const Radius.circular(4),
       );
-      canvas.drawRRect(bgRect, Paint()..color = color.withOpacity(0.1));
+      canvas.drawRRect(bgRect, Paint()..color = color.withValues(alpha: 0.1));
 
       // Draw Bar
       final r = RRect.fromRectAndRadius(

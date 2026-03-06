@@ -24,7 +24,7 @@ class ConnectionService {
 
       final connectivityResult = await _connectivity.checkConnectivity();
 
-      if (connectivityResult == ConnectivityResult.none) {
+      if (connectivityResult.contains(ConnectivityResult.none) || connectivityResult.isEmpty) {
         AppLogger.warn('NO_INTERNET', 'No internet connection available');
         _isConnected = false;
         _isApiReachable = false;

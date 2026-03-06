@@ -1,6 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../domain/repositories/auth_repository.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 
 enum AuthStatus { initial, authenticated, unauthenticated, loading }
@@ -26,22 +25,25 @@ class AuthState {
       AuthState(status: AuthStatus.unauthenticated, errorMessage: message);
 }
 
-class AuthNotifier extends StateNotifier<AuthState> {
-  final AuthRepository _authRepository;
-
-  AuthNotifier(this._authRepository) : super(AuthState.initial()) {
-    _authRepository.authStateChanges.listen((user) {
+class AuthNotifier extends Notifier<AuthState> {
+  @override
+  AuthState build() {
+    final authRepository = ref.watch(authRepositoryProvider);
+    // Listen to Firebase auth state changes
+    authRepository.authStateChanges.listen((user) {
       if (user != null) {
         state = AuthState.authenticated(user);
       } else {
         state = AuthState.unauthenticated();
       }
     });
+    return AuthState.initial();
   }
 
   Future<void> signInWithGoogle() async {
     state = AuthState.loading();
-    final result = await _authRepository.signInWithGoogle();
+    final authRepository = ref.read(authRepositoryProvider);
+    final result = await authRepository.signInWithGoogle();
     result.fold(
       (failure) => state = AuthState.error(failure.message),
       (user) => state = AuthState.authenticated(user),
@@ -50,7 +52,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> signOut() async {
     state = AuthState.loading();
-    final result = await _authRepository.signOut();
+    final authRepository = ref.read(authRepositoryProvider);
+    final result = await authRepository.signOut();
     result.fold(
       (failure) => state = AuthState.error(failure.message),
       (_) => state = AuthState.unauthenticated(),
@@ -58,7 +61,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 }
 
-final authStateProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  final authRepository = ref.watch(authRepositoryProvider);
-  return AuthNotifier(authRepository);
-});
+final authStateProvider = NotifierProvider<AuthNotifier, AuthState>(
+  AuthNotifier.new,
+);

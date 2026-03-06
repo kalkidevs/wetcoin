@@ -117,6 +117,25 @@ class LoginScreen extends ConsumerWidget {
                         ?.copyWith(color: Colors.white54),
                     textAlign: TextAlign.center,
                   ),
+                  const SizedBox(height: 32),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Made with ',
+                        style: AppTypography.textTheme.bodySmall
+                            ?.copyWith(color: Colors.white38),
+                      ),
+                      const Text('❤️', style: TextStyle(fontSize: 12)),
+                      Text(
+                        ' by TheGujaratStore.com',
+                        style: AppTypography.textTheme.bodySmall?.copyWith(
+                          color: Colors.white54,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),

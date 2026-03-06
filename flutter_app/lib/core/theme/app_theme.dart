@@ -94,7 +94,7 @@ class AppTheme {
           disabledBackgroundColor: AppColors.primaryLight,
           disabledForegroundColor: Colors.white70,
           elevation: 3,
-          shadowColor: AppColors.primary.withOpacity(0.35),
+          shadowColor: AppColors.primary.withValues(alpha: 0.35),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -161,7 +161,7 @@ class AppTheme {
         ),
         disabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.divider.withOpacity(0.5)),
+          borderSide: BorderSide(color: AppColors.divider.withValues(alpha: 0.5)),
         ),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -405,7 +405,7 @@ class AppTheme {
           disabledBackgroundColor: const Color(0xFF3D2A00),
           disabledForegroundColor: Colors.white38,
           elevation: 4,
-          shadowColor: AppColors.primary.withOpacity(0.4),
+          shadowColor: AppColors.primary.withValues(alpha: 0.4),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),

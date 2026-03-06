@@ -6,7 +6,6 @@ import 'firebase_options.dart';
 import 'features/health_sync/data/datasources/background_service.dart';
 import 'app.dart';
 import 'core/services/connection_service.dart';
-import 'core/utils/logger.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,91 +22,7 @@ void main() async {
 
   runApp(
     ProviderScope(
-      child: SweatcoinApp(
-        connectionService: connectionService,
-      ),
+      child: App(connectionService: connectionService),
     ),
   );
-}
-
-class SweatcoinApp extends StatelessWidget {
-  final ConnectionService connectionService;
-
-  const SweatcoinApp({Key? key, required this.connectionService})
-      : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Sweatcoin Clone',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: ConnectionCheckWrapper(
-        connectionService: connectionService,
-      ),
-    );
-  }
-}
-
-class ConnectionCheckWrapper extends StatefulWidget {
-  final ConnectionService connectionService;
-
-  const ConnectionCheckWrapper({Key? key, required this.connectionService})
-      : super(key: key);
-
-  @override
-  State<ConnectionCheckWrapper> createState() => _ConnectionCheckWrapperState();
-}
-
-class _ConnectionCheckWrapperState extends State<ConnectionCheckWrapper> {
-  bool _isInitialized = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _initializeApp();
-  }
-
-  Future<void> _initializeApp() async {
-    try {
-      AppLogger.section('APP_STARTUP');
-      AppLogger.info('APP_STARTING', 'Initializing Sweatcoin app...');
-
-      // Show connection status popup
-      await widget.connectionService.initializeConnectionCheck(context);
-
-      setState(() {
-        _isInitialized = true;
-      });
-    } catch (e) {
-      AppLogger.error('APP_INIT_ERROR', 'Error during app initialization: $e');
-      setState(() {
-        _isInitialized = true;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (!_isInitialized) {
-      return const Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Initializing app...'),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Once initialized, show the main app
-    return const App();
-  }
 }

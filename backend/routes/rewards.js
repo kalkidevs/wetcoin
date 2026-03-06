@@ -1,51 +1,35 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const Reward = require('../models/Reward');
+const User = require('../models/User');
+const Order = require('../models/Order');
+const Wallet = require('../models/Wallet');
+const authMiddleware = require('../middleware/auth');
 
-// GET /api/rewards
+// GET /api/rewards — List active rewards (public)
 router.get('/', async (req, res) => {
   try {
-    // Return mock rewards for testing since DB is not connected
-    const mockRewards = [
-      {
-        _id: "1",
-        name: "Water Bottle",
-        cost: 50,
-        description: "Stay hydrated with this eco-friendly water bottle",
-        imageUrl: "https://example.com/water-bottle.jpg",
-        stock: 100,
-        active: true,
-        createdAt: new Date().toISOString()
-      },
-      {
-        _id: "2", 
-        name: "T-Shirt",
-        cost: 100,
-        description: "Comfortable cotton t-shirt with Sweatcoin logo",
-        imageUrl: "https://example.com/tshirt.jpg",
-        stock: 50,
-        active: true,
-        createdAt: new Date().toISOString()
-      },
-      {
-        _id: "3",
-        name: "Headphones",
-        cost: 200,
-        description: "Wireless bluetooth headphones",
-        imageUrl: "https://example.com/headphones.jpg",
-        stock: 25,
-        active: true,
-        createdAt: new Date().toISOString()
-      }
-    ];
+    const rewards = await Reward.find({ active: true })
+      .sort({ cost: 1 })
+      .lean();
+
+    // If no rewards in DB yet, return helpful message
+    if (rewards.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        message: 'No rewards available. Run "npm run db:seed" to populate rewards.'
+      });
+    }
 
     res.json({
       success: true,
-      data: mockRewards
+      data: rewards
     });
 
   } catch (error) {
-    console.error('List rewards error:', error);
+    console.error('❌ [REWARDS] List rewards error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error'
@@ -53,8 +37,11 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /api/redeem-reward
-router.post('/redeem', async (req, res) => {
+// POST /api/rewards/redeem — Redeem a reward (protected, atomic)
+router.post('/redeem', authMiddleware, async (req, res) => {
+  // Use a MongoDB transaction for atomicity
+  const session = await mongoose.startSession();
+
   try {
     const { userId, rewardId, shippingAddress } = req.body;
 
@@ -66,83 +53,105 @@ router.post('/redeem', async (req, res) => {
       });
     }
 
-    // Check if user exists
-    const User = require('../models/User');
-    const user = await User.findOne({ uid: userId });
-    if (!user) {
-      return res.status(404).json({
+    // Verify the authenticated user matches
+    if (req.user.userId !== userId) {
+      return res.status(403).json({
         success: false,
-        error: 'User not found'
+        error: 'You can only redeem rewards for your own account'
       });
     }
 
-    // Check if reward exists and is active
-    const reward = await Reward.findOne({ _id: rewardId, active: true });
-    if (!reward) {
-      return res.status(404).json({
-        success: false,
-        error: 'Reward not found or inactive'
-      });
-    }
-
-    // Check stock
-    if (reward.stock <= 0) {
+    if (shippingAddress.trim().length < 10) {
       return res.status(400).json({
         success: false,
-        error: 'Reward out of stock'
+        error: 'Shipping address must be at least 10 characters'
       });
     }
 
-    // Check balance
-    if (user.balance < reward.cost) {
-      return res.status(400).json({
-        success: false,
-        error: 'Insufficient balance'
+    let result;
+
+    await session.withTransaction(async () => {
+      // Check user exists and has sufficient balance
+      const user = await User.findOne({ uid: userId }).session(session);
+      if (!user) {
+        throw { statusCode: 404, message: 'User not found' };
+      }
+
+      // Check reward exists and is active
+      const reward = await Reward.findOne({ _id: rewardId, active: true }).session(session);
+      if (!reward) {
+        throw { statusCode: 404, message: 'Reward not found or inactive' };
+      }
+
+      // Check stock
+      if (reward.stock <= 0) {
+        throw { statusCode: 400, message: 'Reward out of stock' };
+      }
+
+      // Check balance
+      if (user.balance < reward.cost) {
+        throw { statusCode: 400, message: `Insufficient balance. Need ${reward.cost} coins, have ${user.balance}` };
+      }
+
+      // ── All checks passed — execute atomically ──
+
+      // 1. Deduct user balance
+      user.balance -= reward.cost;
+      await user.save({ session });
+
+      // 2. Decrement reward stock
+      reward.stock -= 1;
+      await reward.save({ session });
+
+      // 3. Create order
+      const order = new Order({
+        userId,
+        rewardId,
+        rewardName: reward.name,
+        cost: reward.cost,
+        shippingAddress: shippingAddress.trim(),
+        status: 'pending'
       });
-    }
+      await order.save({ session });
 
-    // Create order
-    const Order = require('../models/Order');
-    const order = new Order({
-      userId,
-      rewardId,
-      rewardName: reward.name,
-      cost: reward.cost,
-      shippingAddress
+      // 4. Create wallet "spend" entry
+      const walletEntry = new Wallet({
+        userId,
+        type: 'spend',
+        amount: -reward.cost,
+        description: `Redeemed: ${reward.name}`,
+        referenceId: order._id.toString()
+      });
+      await walletEntry.save({ session });
+
+      console.log(`✅ [REWARDS] Redemption complete: ${userId} redeemed "${reward.name}" for ${reward.cost} coins`);
+
+      result = {
+        success: true,
+        orderId: order._id.toString(),
+        newBalance: user.balance,
+        message: `Successfully redeemed "${reward.name}"`
+      };
     });
-    await order.save();
 
-    // Update reward stock
-    reward.stock -= 1;
-    await reward.save();
-
-    // Deduct coins from user
-    user.balance -= reward.cost;
-    await user.save();
-
-    // Create wallet transaction
-    const Wallet = require('../models/Wallet');
-    const walletEntry = new Wallet({
-      userId,
-      type: 'spend',
-      amount: -reward.cost,
-      description: `Redeemed ${reward.name}`,
-      referenceId: order._id.toString()
-    });
-    await walletEntry.save();
-
-    res.json({
-      success: true,
-      orderId: order._id.toString(),
-      message: 'Reward redeemed successfully'
-    });
+    res.json(result);
 
   } catch (error) {
-    console.error('Redemption error:', error);
+    // Handle our custom validation errors
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        success: false,
+        error: error.message
+      });
+    }
+
+    console.error('❌ [REWARDS] Redemption error:', error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: 'Internal server error during redemption'
     });
+  } finally {
+    session.endSession();
   }
 });
 

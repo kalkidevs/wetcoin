@@ -1,6 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/design_system.dart';
 import '../providers/rewards_provider.dart';
 import '../../domain/entities/reward.dart';
 
@@ -18,14 +20,38 @@ class _RewardCardState extends ConsumerState<RewardCard> {
 
   Future<void> _handleRedeem(BuildContext context) async {
     final addressController = TextEditingController();
+
     final shouldRedeem = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text('Redeem ${widget.reward.title}'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Cost: ${widget.reward.costCoins} coins'),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                gradient: DesignSystem.coinGradient,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.monetization_on_rounded, size: 16, color: Colors.white),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${widget.reward.costCoins} SWC',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 16),
             TextField(
               controller: addressController,
@@ -39,11 +65,11 @@ class _RewardCardState extends ConsumerState<RewardCard> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Confirm'),
           ),
         ],
@@ -57,29 +83,31 @@ class _RewardCardState extends ConsumerState<RewardCard> {
               rewardId: widget.reward.id,
               shippingAddress: addressController.text,
             );
-
         result.fold(
           (failure) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Error: ${failure.message}')),
+                SnackBar(
+                  content: Text('Error: ${failure.message}'),
+                  backgroundColor: AppColors.error,
+                ),
               );
             }
           },
           (orderId) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Redeemed! Order ID: $orderId')),
+                SnackBar(
+                  content: Text('Redeemed! Order #$orderId 🎉'),
+                  backgroundColor: AppColors.success,
+                ),
               );
-              // Refresh rewards list to update stock
               ref.invalidate(rewardsProvider);
             }
           },
         );
       } finally {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
+        if (mounted) setState(() => _isLoading = false);
       }
     }
   }
@@ -87,132 +115,239 @@ class _RewardCardState extends ConsumerState<RewardCard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+    return GestureDetector(
+      onTap: widget.reward.isOutOfStock || _isLoading
+          ? null
+          : () => _handleRedeem(context),
+      child: AnimatedScale(
+        scale: _isLoading ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 150),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.white,
+            borderRadius: BorderRadius.circular(DesignSystem.radiusLarge),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Colors.black.withValues(alpha: 0.05),
+            ),
+            boxShadow: isDark
+                ? null
+                : DesignSystem.elevationSoft(Colors.black),
           ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            flex: 55,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                CachedNetworkImage(
-                  imageUrl: widget.reward.image,
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    color: Colors.grey[200],
-                    child: const Center(child: CircularProgressIndicator()),
-                  ),
-                  errorWidget: (context, url, error) => Container(
-                    color: Colors.grey[200],
-                    child: const Icon(Icons.error),
-                  ),
-                ),
-                if (widget.reward.isOutOfStock)
-                  Container(
-                    color: Colors.black.withOpacity(0.5),
-                    child: Center(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.7),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text(
-                          'Out of Stock',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Image Section ─────────────────────────────────────
+              Expanded(
+                flex: 55,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    CachedNetworkImage(
+                      imageUrl: widget.reward.image,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => Container(
+                        color: cs.surfaceContainerHighest,
+                        child: Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: cs.primary.withValues(alpha: 0.5),
+                            ),
                           ),
                         ),
                       ),
+                      errorWidget: (_, __, ___) => Container(
+                        color: cs.surfaceContainerHighest,
+                        child: Icon(Icons.card_giftcard_rounded,
+                            color: cs.onSurface.withValues(alpha: 0.15), size: 32),
+                      ),
                     ),
-                  ),
-              ],
-            ),
-          ),
-          Expanded(
-            flex: 45,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    widget.reward.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+
+                    // Price badge (top-right)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          gradient: DesignSystem.coinGradient,
+                          borderRadius: BorderRadius.circular(DesignSystem.radiusPill),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.monetization_on_rounded,
+                                size: 12, color: Colors.white),
+                            const SizedBox(width: 3),
+                            Text(
+                              '${widget.reward.costCoins}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                  Row(
+
+                    // Out of stock overlay
+                    if (widget.reward.isOutOfStock)
+                      Container(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: AppColors.error,
+                              borderRadius: BorderRadius.circular(DesignSystem.radiusPill),
+                            ),
+                            child: const Text(
+                              'Sold Out',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+
+              // ── Info Section ──────────────────────────────────────
+              Expanded(
+                flex: 45,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
+                      Text(
+                        widget.reward.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          height: 1.2,
+                          fontSize: 13,
+                        ),
+                      ),
+
+                      // Stock indicator + Redeem
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Icon(Icons.monetization_on_rounded,
-                              size: 16, color: theme.colorScheme.secondary),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${widget.reward.costCoins}',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
+                          // Stock indicator
+                          _StockIndicator(
+                            stock: widget.reward.stock,
+                            isDark: isDark,
+                          ),
+
+                          // Redeem button
+                          SizedBox(
+                            height: 28,
+                            child: FilledButton(
+                              onPressed: widget.reward.isOutOfStock || _isLoading
+                                  ? null
+                                  : () => _handleRedeem(context),
+                              style: FilledButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(DesignSystem.radiusPill)),
+                                textStyle: const TextStyle(
+                                    fontSize: 11, fontWeight: FontWeight.w700),
+                              ),
+                              child: _isLoading
+                                  ? SizedBox(
+                                      width: 12,
+                                      height: 12,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: cs.onPrimary,
+                                      ),
+                                    )
+                                  : const Text('Get'),
                             ),
                           ),
                         ],
                       ),
-                      SizedBox(
-                        height: 32,
-                        child: ElevatedButton(
-                          onPressed: widget.reward.isOutOfStock || _isLoading
-                              ? null
-                              : () => _handleRedeem(context),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: theme.primaryColor,
-                            disabledBackgroundColor: Colors.grey[300],
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16)),
-                          ),
-                          child: _isLoading
-                              ? const SizedBox(
-                                  width: 12,
-                                  height: 12,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text('Redeem',
-                                  style: TextStyle(
-                                      color: Colors.white, fontSize: 12)),
-                        ),
-                      ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
+    );
+  }
+}
+
+class _StockIndicator extends StatelessWidget {
+  final int stock;
+  final bool isDark;
+
+  const _StockIndicator({required this.stock, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    Color color;
+    String text;
+    if (stock <= 0) {
+      color = AppColors.error;
+      text = 'Sold out';
+    } else if (stock <= 5) {
+      color = AppColors.warning;
+      text = '$stock left';
+    } else {
+      color = AppColors.success;
+      text = 'In stock';
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          text,
+          style: TextStyle(
+            color: color,
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 }

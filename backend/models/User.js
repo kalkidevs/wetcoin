@@ -92,12 +92,19 @@ userSchema.statics.findOrCreate = async function(uid, userData) {
     });
     await user.save();
     console.log(`✅ [MONGODB] New user created successfully: ${uid}`);
+    
+    // After saving, refresh from database to ensure all data is synced
+    user = await this.findOne({ uid });
+    
     console.log(`✅ [MONGODB] User data:`, {
       uid: user.uid,
       name: user.name,
       email: user.email,
       balance: user.balance,
-      lifetimeSteps: user.lifetimeSteps
+      lifetimeSteps: user.lifetimeSteps,
+      lifetimeCoins: user.lifetimeCoins,
+      createdAt: user.createdAt,
+      lastLoginAt: user.lastLoginAt
     });
   } else {
     console.log(`🔄 [MONGODB] User found, checking for updates: ${uid}`);
@@ -110,6 +117,9 @@ userSchema.statics.findOrCreate = async function(uid, userData) {
     if (Object.keys(updateData).length > 0) {
       console.log(`📝 [MONGODB] Updating user data:`, updateData);
       await this.updateOne({ uid }, { $set: updateData });
+      
+      // Refresh user from database after update
+      user = await this.findOne({ uid });
       console.log(`✅ [MONGODB] User updated successfully: ${uid}`);
     } else {
       console.log(`ℹ️  [MONGODB] No updates needed for user: ${uid}`);
@@ -121,7 +131,9 @@ userSchema.statics.findOrCreate = async function(uid, userData) {
     name: user.name,
     email: user.email,
     balance: user.balance,
-    lifetimeSteps: user.lifetimeSteps
+    lifetimeSteps: user.lifetimeSteps,
+    lifetimeCoins: user.lifetimeCoins,
+    createdAt: user.createdAt
   });
   
   return user;

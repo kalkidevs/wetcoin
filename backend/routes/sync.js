@@ -3,17 +3,18 @@ const router = express.Router();
 const Step = require('../models/Step');
 const User = require('../models/User');
 const Wallet = require('../models/Wallet');
+const authMiddleware = require('../middleware/auth');
 
 // Constants
 const STEPS_PER_COIN = 100;
-const MAX_EARNABLE_STEPS = 15000; // 150 coins max
-const MAX_TOTAL_STEPS = 30000; // Hard limit for sanity check
+const MAX_EARNABLE_STEPS = 15000; // 150 coins max per day
+const MAX_TOTAL_STEPS = 30000;    // Hard limit for sanity check
 const MAX_BACKDATE_HOURS = 48;
 const MIN_SYNC_INTERVAL_MILLIS = 5 * 60 * 1000; // 5 minutes
-const MAX_REQUEST_AGE_MILLIS = 5 * 60 * 1000; // 5 minutes
+const MAX_REQUEST_AGE_MILLIS = 5 * 60 * 1000;    // 5 minutes
 
-// POST /api/sync-steps
-router.post('/', async (req, res) => {
+// POST /api/sync — Sync step data (protected)
+router.post('/', authMiddleware, async (req, res) => {
   try {
     const { userId, steps, date, deviceId, requestTimestamp } = req.body;
 
@@ -22,6 +23,14 @@ router.post('/', async (req, res) => {
       return res.status(400).json({
         success: false,
         error: 'Missing required fields: userId, steps, date, deviceId, requestTimestamp'
+      });
+    }
+
+    // Verify the authenticated user matches the userId in the request
+    if (req.user.userId !== userId) {
+      return res.status(403).json({
+        success: false,
+        error: 'You can only sync steps for your own account'
       });
     }
 
@@ -37,15 +46,13 @@ router.post('/', async (req, res) => {
     const requestTime = requestTimestamp;
     const serverTime = Date.now();
     if (Math.abs(serverTime - requestTime) > MAX_REQUEST_AGE_MILLIS) {
-      // For testing, allow a wider range
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('Warning: Request timestamp validation bypassed for testing');
-      } else {
+      if (process.env.NODE_ENV === 'production') {
         return res.status(400).json({
           success: false,
           error: 'Request timestamp too old or in future'
         });
       }
+      console.log('⚠️  [SYNC] Request timestamp validation bypassed (dev mode)');
     }
 
     // Sanity check (prevent unrealistic step counts)
@@ -53,6 +60,13 @@ router.post('/', async (req, res) => {
       return res.status(400).json({
         success: false,
         error: `Steps cannot exceed ${MAX_TOTAL_STEPS} in a single day`
+      });
+    }
+
+    if (steps < 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Steps cannot be negative'
       });
     }
 
@@ -75,7 +89,6 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Prevent future dates
     if (stepDate.getTime() > now.getTime() + 600000) {
       return res.status(400).json({
         success: false,
@@ -85,7 +98,6 @@ router.post('/', async (req, res) => {
 
     // Check if user exists in MongoDB
     const user = await User.findOne({ uid: userId });
-    
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -98,17 +110,18 @@ router.post('/', async (req, res) => {
     if (Date.now() - lastSyncTime < MIN_SYNC_INTERVAL_MILLIS) {
       return res.status(429).json({
         success: false,
-        error: 'Syncing too frequently. Please wait.'
+        error: 'Syncing too frequently. Please wait a few minutes.'
       });
     }
 
-    // Check if we already have data for this date (skip database check for now)
-    // In production, this would check the database
-    let existingSteps = 0;
-    let existingEarnedSteps = 0;
+    // ── Query existing Step record for this (userId, date) pair ──
+    const existingStep = await Step.findOne({ userId, date });
+    const existingSteps = existingStep?.steps || 0;
+    const existingEarnedSteps = existingStep?.earnedSteps || 0;
 
-    // Reject duplicate sync (idempotency)
+    // Reject duplicate / older data (idempotency)
     if (steps <= existingSteps) {
+      console.log(`ℹ️  [SYNC] Duplicate/older data ignored for ${userId} on ${date}`);
       return res.json({
         success: true,
         balance: user.balance,
@@ -121,39 +134,58 @@ router.post('/', async (req, res) => {
     // Calculate delta and coins earned
     const stepsToReward = Math.min(steps, MAX_EARNABLE_STEPS);
     const newEarnedSteps = Math.max(0, stepsToReward - existingEarnedSteps);
-    const coinsEarned = newEarnedSteps / STEPS_PER_COIN;
+    const coinsEarned = Math.floor(newEarnedSteps / STEPS_PER_COIN);
 
-    // Update or create step record
-    const stepData = {
-      userId,
-      date,
-      steps,
-      earnedSteps: stepsToReward,
-      deviceId,
-      lastSync: new Date()
-    };
+    // ── Upsert Step record in MongoDB ──
+    await Step.findOneAndUpdate(
+      { userId, date },
+      {
+        $set: {
+          steps,
+          earnedSteps: stepsToReward,
+          deviceId,
+          lastSync: new Date()
+        }
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`✅ [SYNC] Step record saved: ${userId} | ${date} | ${steps} steps`);
 
     // Update user balance and lifetime stats
+    const stepsDelta = steps - existingSteps;
     if (coinsEarned > 0) {
       user.balance += coinsEarned;
       user.lifetimeCoins += coinsEarned;
     }
-
-    user.lifetimeSteps += (steps - existingSteps);
+    user.lifetimeSteps += stepsDelta;
     user.lastSync = new Date();
-
-    // Save user updates to MongoDB
     await user.save();
+    console.log(`✅ [SYNC] User updated: balance=${user.balance}, lifetimeSteps=${user.lifetimeSteps}`);
+
+    // ── Create wallet "earn" transaction ──
+    if (coinsEarned > 0) {
+      const walletEntry = new Wallet({
+        userId,
+        type: 'earn',
+        amount: coinsEarned,
+        description: `Earned ${coinsEarned} coins for ${stepsDelta} steps`,
+        referenceId: `sync_${date}_${Date.now()}`
+      });
+      await walletEntry.save();
+      console.log(`✅ [SYNC] Wallet earn entry created: +${coinsEarned} coins`);
+    }
 
     res.json({
       success: true,
       balance: user.balance,
       earned: coinsEarned,
-      stepsSaved: steps
+      stepsSaved: steps,
+      lifetimeSteps: user.lifetimeSteps,
+      lifetimeCoins: user.lifetimeCoins
     });
 
   } catch (error) {
-    console.error('Sync error:', error);
+    console.error('❌ [SYNC] Sync error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error'

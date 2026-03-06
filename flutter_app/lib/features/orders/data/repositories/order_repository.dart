@@ -1,26 +1,39 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sweatcoin/core/constants/app_constants.dart';
-import 'package:sweatcoin/features/auth/data/datasources/auth_remote_data_source.dart';
+import '../../../../core/services/api_service.dart';
 
-final orderRepositoryProvider = Provider((ref) => OrderRepository(ref));
+final orderRepositoryProvider = Provider((ref) => OrderRepository());
 
 class OrderRepository {
-  final Ref _ref;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final ApiService _api = ApiService();
 
-  OrderRepository(this._ref);
+  /// Get user's order history from backend API
+  Future<Map<String, dynamic>> getUserOrders({
+    int limit = 20,
+    int skip = 0,
+    String? status,
+  }) async {
+    final userId = await _api.getUserId();
+    if (userId == null || userId.isEmpty) {
+      return {'success': false, 'error': 'User not logged in'};
+    }
 
-  Stream<List<Map<String, dynamic>>> getUserOrders() {
-    final user = _ref.read(authServiceProvider).currentUser;
-    if (user == null) return const Stream.empty();
+    final queryParams = <String, String>{
+      'limit': limit.toString(),
+      'skip': skip.toString(),
+    };
+    if (status != null) {
+      queryParams['status'] = status;
+    }
 
-    return _firestore
-        .collection(AppConstants.collectionOrders)
-        .where('userId', isEqualTo: user.uid)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList());
+    return await _api.get('/api/orders/$userId', queryParams: queryParams);
+  }
+
+  /// Get orders as a stream-like list (for compatibility with existing UI)
+  Future<List<Map<String, dynamic>>> getOrdersList() async {
+    final result = await getUserOrders();
+    if (result['success'] == true) {
+      return List<Map<String, dynamic>>.from(result['data'] ?? []);
+    }
+    return [];
   }
 }

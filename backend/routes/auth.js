@@ -5,15 +5,49 @@ const jwt = require('jsonwebtoken');
 const admin = require('firebase-admin');
 
 // Initialize Firebase Admin SDK
+let isFirebaseInitialized = false;
+
 if (!admin.apps.length) {
   try {
-    admin.initializeApp({
-      credential: admin.credential.applicationDefault()
-    });
-    console.log('Firebase Admin initialized successfully');
+    console.log('\n🔧 [FIREBASE] Initializing Firebase Admin SDK...');
+    
+    // Check if we have a service account file
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const serviceAccountPath = path.join(__dirname, '../firebase-service-account.json');
+      
+      if (fs.existsSync(serviceAccountPath)) {
+        const serviceAccount = require(serviceAccountPath);
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount)
+        });
+        console.log('✅ [FIREBASE] Initialized with service account file (firebase-service-account.json)');
+        isFirebaseInitialized = true;
+      } else {
+        // Fallback for local development: Initialize with just the project ID
+        // This completely bypasses applicationDefault() to avoid ENOTFOUND metadata.google.internal errors
+        console.log('⚠️  [FIREBASE] No service account file found. Initializing with Project ID only.');
+        admin.initializeApp({
+          projectId: 'sweatcoin-india-91fbb'
+        });
+        console.log('✅ [FIREBASE] Initialized with Project ID (Token verification will work locally)');
+        isFirebaseInitialized = true;
+      }
+    } catch (error) {
+      console.error('❌ [FIREBASE] CRITICAL ERROR: Firebase initialization failed completely');
+      console.error('❌ [FIREBASE] Error:', error.message);
+      console.error('❌ [FIREBASE] Token verification will fail!');
+      isFirebaseInitialized = false;
+    }
+    console.log('');
   } catch (error) {
-    console.error('Firebase Admin initialization failed:', error);
+    console.error('❌ [FIREBASE] Unexpected error during initialization:', error);
+    isFirebaseInitialized = false;
   }
+} else {
+  console.log('✅ [FIREBASE] Firebase Admin SDK already initialized');
+  isFirebaseInitialized = true;
 }
 
 // Constants
@@ -24,6 +58,16 @@ router.post('/verify-token', async (req, res) => {
   try {
     console.log('🔍 [BACKEND] Received verify-token request');
     console.log('🔍 [BACKEND] Request body:', JSON.stringify(req.body, null, 2));
+    
+    // Check if Firebase is properly initialized
+    if (!isFirebaseInitialized) {
+      console.error('❌ [BACKEND] Firebase Admin SDK is not initialized!');
+      return res.status(500).json({
+        success: false,
+        error: 'Firebase initialization failed. Cannot verify token.',
+        details: 'Please check Firebase configuration and try again.'
+      });
+    }
     
     const { idToken } = req.body;
 
